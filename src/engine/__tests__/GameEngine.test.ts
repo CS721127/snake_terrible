@@ -40,6 +40,8 @@ describe("GameEngine", () => {
     const snapshots: unknown[] = [];
     const scores: number[] = [];
     const phases: string[] = [];
+    const revivals: Array<{ remaining: number; total: number }> = [];
+    const quizRequired = vi.fn();
     const engine = new GameEngine({
       grid: { columns: 10, rows: 10 },
       cellSizePx: 20,
@@ -48,8 +50,37 @@ describe("GameEngine", () => {
       onRenderSnapshot: (s) => snapshots.push(s),
       onScoreChange: (s) => scores.push(s),
       onPhaseChange: (p) => phases.push(p),
+      onRevivalsChange: (remaining, total) => revivals.push({ remaining, total }),
+      onQuizRequired: quizRequired,
     });
-    return { engine, snapshots, scores, phases };
+    return { engine, snapshots, scores, phases, revivals, quizRequired };
+  }
+
+  function advanceTicks(count: number, startTimestamp: number): number {
+    let t = startTimestamp;
+    for (let i = 0; i < count; i++) {
+      t += 150;
+      fireFrame(t);
+    }
+    return t;
+  }
+
+  function driveIntoRightWall(
+    engine: GameEngine,
+    revivals: Array<{ remaining: number; total: number }>,
+    startTimestamp: number,
+  ): number {
+    const targetRevivalEvents = revivals.length + 1;
+    let t = startTimestamp;
+
+    for (let i = 0; i < 24; i++) {
+      t = advanceTicks(1, t);
+      if (revivals.length >= targetRevivalEvents || engine.state.is("REVIVING")) {
+        return t;
+      }
+    }
+
+    throw new Error("Expected the snake to collide with the right wall.");
   }
 
   it("初始状态为 IDLE，调用 start() 后进入 PLAYING", () => {
@@ -74,39 +105,50 @@ describe("GameEngine", () => {
     expect(engine.state.is("PLAYING")).toBe(true);
   });
 
-  it("撞墙后进入 GAME_OVER 状态，并停止响应后续 tick", () => {
-    const { engine, phases } = createEngine();
+  it("撞墙后优先消耗免费复活，耗尽后进入 REVIVING", () => {
+    const { engine, phases, revivals, quizRequired } = createEngine();
     engine.start();
     fireFrame(0);
 
-    // 网格 10x10，蛇初始头部在 (5,5)，方向 RIGHT，撞右墙需要移动 4 步到达 x=9，
-    // 第 5 步移动到 x=10 越界。
     let t = 0;
-    for (let i = 0; i < 6; i++) {
-      t += 150;
-      fireFrame(t);
-    }
+    t = driveIntoRightWall(engine, revivals, t);
+    expect(engine.state.is("PLAYING")).toBe(true);
+    expect(revivals[revivals.length - 1]).toEqual({ remaining: 2, total: 3 });
 
-    expect(engine.state.is("GAME_OVER")).toBe(true);
-    expect(phases).toContain("GAME_OVER");
+    t = driveIntoRightWall(engine, revivals, t);
+    expect(engine.state.is("PLAYING")).toBe(true);
+    expect(revivals[revivals.length - 1]).toEqual({ remaining: 1, total: 3 });
+
+    t = driveIntoRightWall(engine, revivals, t);
+    expect(engine.state.is("PLAYING")).toBe(true);
+    expect(revivals[revivals.length - 1]).toEqual({ remaining: 0, total: 3 });
+
+    t = driveIntoRightWall(engine, revivals, t);
+
+    expect(engine.state.is("REVIVING")).toBe(true);
+    expect(phases).toContain("REVIVING");
+    expect(quizRequired).toHaveBeenCalledTimes(1);
   });
 
-  it("GAME_OVER 后调用 start() 可以重新开始一局，分数重置为 0", () => {
-    const { engine, scores } = createEngine();
+  it("答题复活失败 GAME_OVER 后调用 start() 可以重新开始一局", () => {
+    const { engine, scores, revivals } = createEngine();
     engine.start();
     fireFrame(0);
 
     let t = 0;
-    for (let i = 0; i < 6; i++) {
-      t += 150;
-      fireFrame(t);
+    for (let i = 0; i < 4; i++) {
+      t = driveIntoRightWall(engine, revivals, t);
     }
+    expect(engine.state.is("REVIVING")).toBe(true);
+
+    engine.submitQuizFailure();
     expect(engine.state.is("GAME_OVER")).toBe(true);
 
     engine.start();
     expect(engine.state.is("PLAYING")).toBe(true);
     expect(engine.getScore()).toBe(0);
     expect(scores[scores.length - 1]).toBe(0);
+    expect(revivals[revivals.length - 1]).toEqual({ remaining: 3, total: 3 });
   });
 
   it("非 PLAYING 状态下方向输入不会被蛇接受（不抛错、静默忽略）", () => {

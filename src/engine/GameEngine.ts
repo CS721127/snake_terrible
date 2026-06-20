@@ -179,6 +179,12 @@ export class GameEngine {
     this.skinId = skinId;
   }
 
+  /** Queues a direction input from any controller, including remote clients. */
+  queueDirection(direction: Direction): void {
+    if (!this.state.is("PLAYING")) return;
+    this.snake.requestDirection(direction);
+  }
+
   private createInitialSnake(): Snake {
     const startX = Math.floor(this.grid.columns / 2);
     const startY = Math.floor(this.grid.rows / 2);
@@ -190,8 +196,7 @@ export class GameEngine {
   }
 
   private handleDirectionInput(direction: Direction): void {
-    if (!this.state.is("PLAYING")) return;
-    this.snake.requestDirection(direction);
+    this.queueDirection(direction);
   }
 
   /** 逻辑帧：由 TickLoop 以固定间隔调用，不受渲染帧率影响。 */

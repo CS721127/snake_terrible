@@ -2,7 +2,7 @@
   "name": "complement-snake",
   "private": true,
   "version": "0.1.0",
-  "description": "Complement-Snake：将 2's Complement 与位运算融入贪吃蛇玩法的极客游戏。Sprint 1 阶段为纯单机核心引擎，尚不含补码玩法。",
+  "description": "Complement-Snake: Canvas snake with React, TailwindCSS, and Supabase Realtime host authority.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,8 +13,20 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.5.0",
+    "jsdom": "^29.1.1",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^3.4.17",
     "typescript": "^5.6.3",
     "vite": "^5.4.10",
     "vitest": "^2.1.4"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.108.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   }
 }

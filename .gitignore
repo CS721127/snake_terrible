@@ -15,3 +15,10 @@ npm-debug.log*
 
 # Test coverage
 coverage/
+
+# Configuration
+package-lock.json
+
+# AI
+.codex
+.agents
