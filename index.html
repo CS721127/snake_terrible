@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Complement-Snake // Sprint 1</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="hud">
+        <div class="hud__brand">
+          <span class="hud__brand-glyph">01</span>
+          <span class="hud__brand-name">COMPLEMENT&nbsp;_&nbsp;SNAKE</span>
+        </div>
+        <div class="hud__stats">
+          <div class="hud__stat">
+            <span class="hud__stat-label">SCORE</span>
+            <span class="hud__stat-value" id="score-dec">0</span>
+          </div>
+          <div class="hud__stat hud__stat--hex">
+            <span class="hud__stat-label">HEX</span>
+            <span class="hud__stat-value" id="score-hex">0x00</span>
+          </div>
+          <div class="hud__stat">
+            <span class="hud__stat-label">STATE</span>
+            <span class="hud__stat-value" id="phase-label">IDLE</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="stage">
+        <div class="stage__board">
+          <canvas id="game-canvas" aria-label="Complement-Snake 游戏画面"></canvas>
+
+          <div id="overlay" class="overlay" data-visible="true">
+            <div class="overlay__panel">
+              <p class="overlay__eyebrow">SPRINT 1 // 单机核心引擎</p>
+              <h1 class="overlay__title" id="overlay-title">READY?</h1>
+              <p class="overlay__desc" id="overlay-desc">
+                方向键 / WASD / 滑动屏幕控制移动。撞墙或撞到自己的身体，进程终止。
+              </p>
+              <button class="overlay__cta" id="start-button" type="button">
+                START_GAME()
+              </button>
+              <p class="overlay__hint">按 <kbd>Space</kbd> 也可以开始</p>
+            </div>
+          </div>
+        </div>
+
+        <p class="stage__footnote">
+          tick = 150ms · grid = <span id="grid-size-label"></span> · 普通食物 +1（补码玩法将在 Sprint 2 接管）
+        </p>
+      </main>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

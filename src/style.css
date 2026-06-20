@@ -1,0 +1,268 @@
+/* ===========================================================
+   Design tokens — Complement-Snake
+   主题：终端 / 寄存器美学。这不是一个"暗黑+荧光绿"的泛用赛博模板——
+   每一个颜色和排版决定都对应"这是一台计算机内部正在运行的程序"这个具体设定：
+   HUD 把分数同时显示为十进制与十六进制（呼应 Sprint 2 即将接管的位运算玩法），
+   网格背景模拟内存页的明暗交替，蛇头的描边像一个跳动的写入光标。
+   =========================================================== */
+
+:root {
+  /* Color */
+  --color-bg: #060907;
+  --color-panel: #0b120d;
+  --color-grid-a: #0d1a10;
+  --color-grid-b: #0f1e13;
+  --color-phosphor: #39ff6a;
+  --color-phosphor-bright: #9bffc2;
+  --color-phosphor-dim: #1f5c38;
+  --color-danger: #ff4d6a;
+  --color-text-primary: #d6ffe6;
+  --color-text-muted: #5d8a6c;
+  --color-border: #1a2b1e;
+
+  /* Type */
+  --font-mono: "IBM Plex Mono", "JetBrains Mono", "SFMono-Regular", Menlo, Consolas,
+    monospace;
+
+  /* Layout */
+  --radius-panel: 2px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 40px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+}
+
+body {
+  background-image: radial-gradient(
+    circle at 50% 0%,
+    rgba(57, 255, 106, 0.06),
+    transparent 60%
+  );
+}
+
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-3);
+  gap: var(--space-3);
+}
+
+/* ---------- HUD ---------- */
+
+.hud {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--color-border);
+  background: var(--color-panel);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-panel);
+}
+
+.hud__brand {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  letter-spacing: 0.08em;
+}
+
+.hud__brand-glyph {
+  color: var(--color-phosphor-dim);
+  font-size: 0.75rem;
+}
+
+.hud__brand-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-phosphor-bright);
+}
+
+.hud__stats {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.hud__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.3;
+}
+
+.hud__stat-label {
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  color: var(--color-text-muted);
+}
+
+.hud__stat-value {
+  font-size: 0.95rem;
+  color: var(--color-phosphor);
+  font-weight: 600;
+}
+
+.hud__stat--hex .hud__stat-value {
+  color: var(--color-phosphor-bright);
+}
+
+/* ---------- Stage ---------- */
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.stage__board {
+  position: relative;
+  border: 1px solid var(--color-border);
+  background: var(--color-grid-a);
+  border-radius: var(--radius-panel);
+  line-height: 0;
+  box-shadow: 0 0 0 1px rgba(57, 255, 106, 0.05), 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+#game-canvas {
+  display: block;
+  touch-action: none;
+}
+
+.stage__footnote {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+  letter-spacing: 0.02em;
+  margin: 0;
+}
+
+/* ---------- Overlay ---------- */
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 9, 7, 0.86);
+  backdrop-filter: blur(2px);
+  transition: opacity 0.15s ease;
+}
+
+.overlay[data-visible="false"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.overlay__panel {
+  text-align: center;
+  padding: var(--space-4);
+  max-width: 360px;
+}
+
+.overlay__eyebrow {
+  margin: 0 0 var(--space-2);
+  font-size: 0.65rem;
+  letter-spacing: 0.18em;
+  color: var(--color-text-muted);
+}
+
+.overlay__title {
+  margin: 0 0 var(--space-2);
+  font-size: 1.9rem;
+  letter-spacing: 0.04em;
+  color: var(--color-phosphor-bright);
+}
+
+.overlay__title[data-state="gameover"] {
+  color: var(--color-danger);
+}
+
+.overlay__desc {
+  margin: 0 0 var(--space-4);
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: var(--color-text-primary);
+  opacity: 0.85;
+}
+
+.overlay__cta {
+  font-family: var(--font-mono);
+  background: var(--color-phosphor);
+  color: #04210f;
+  border: none;
+  padding: var(--space-2) var(--space-4);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: var(--radius-panel);
+  cursor: pointer;
+  transition: transform 0.08s ease, background 0.15s ease;
+}
+
+.overlay__cta:hover {
+  background: var(--color-phosphor-bright);
+}
+
+.overlay__cta:active {
+  transform: scale(0.97);
+}
+
+.overlay__cta:focus-visible {
+  outline: 2px solid var(--color-phosphor-bright);
+  outline-offset: 3px;
+}
+
+.overlay__hint {
+  margin: var(--space-3) 0 0;
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+}
+
+.overlay__hint kbd {
+  font-family: var(--font-mono);
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+  padding: 1px 5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .overlay__cta {
+    transition: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .hud {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+  .hud__stats {
+    gap: var(--space-3);
+    align-self: stretch;
+    justify-content: space-between;
+  }
+  .hud__stat {
+    align-items: flex-start;
+  }
+}

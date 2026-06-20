@@ -1,0 +1,20 @@
+{
+  "name": "complement-snake",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Complement-Snake：将 2's Complement 与位运算融入贪吃蛇玩法的极客游戏。Sprint 1 阶段为纯单机核心引擎，尚不含补码玩法。",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.4"
+  }
+}
