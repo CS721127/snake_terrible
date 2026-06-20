@@ -1,63 +1,112 @@
 import { Grid } from "./core/Grid";
 import { Snake } from "./core/Snake";
-import { SimpleFood } from "./core/SimpleFood";
 import { CollisionDetector } from "./core/CollisionDetector";
 import { GameState } from "./core/GameState";
 import type { GamePhase } from "./core/GameState";
 import { TickLoop } from "./core/TickLoop";
 import { InputController } from "./core/InputController";
-import { cellsEqual } from "./core/types";
 import type { Direction, GridConfig } from "./core/types";
 import type { RenderSnapshot } from "../rendering/Renderer";
+import { FoodPool } from "./FoodPool";
+import { RevivalManager } from "./revival/RevivalManager";
+
+export type DifficultyLevel = "EASY" | "MEDIUM" | "HARD";
+
+/** 各难度对应的游戏参数。 */
+const DIFFICULTY_PRESETS: Record<
+  DifficultyLevel,
+  { grid: GridConfig; tickIntervalMs: number }
+> = {
+  EASY: { grid: { columns: 20, rows: 20 }, tickIntervalMs: 200 },
+  MEDIUM: { grid: { columns: 28, rows: 28 }, tickIntervalMs: 150 },
+  HARD: { grid: { columns: 36, rows: 36 }, tickIntervalMs: 100 },
+};
 
 export interface GameEngineOptions {
-  grid: GridConfig;
-  /** 每个逻辑 tick 的毫秒数，需求给出 150ms 作为默认值。 */
+  difficulty?: DifficultyLevel;
+  /** 若指定则覆盖 difficulty 给出的网格（供测试或自定义模式使用）。 */
+  grid?: GridConfig;
+  /** 若指定则覆盖 difficulty 给出的 tick 速度。 */
   tickIntervalMs?: number;
   cellSizePx: number;
   inputTarget: HTMLElement | Window;
+  skinId?: string;
   onRenderSnapshot: (snapshot: RenderSnapshot) => void;
   onScoreChange?: (score: number) => void;
+  onLengthChange?: (length: number) => void;
   onPhaseChange?: (phase: GamePhase) => void;
+  onRevivalsChange?: (remaining: number, total: number) => void;
+  onQuizRequired?: () => void;
+  onRevivalFailed?: () => void;
 }
 
 /**
- * GameEngine：顶层门面（Facade），组合所有子系统并对外提供一个简单的接口。
+ * GameEngine：顶层门面（Facade），组合所有子系统并对外提供简单接口。
  *
- * 这一层的核心价值：main.ts（UI/启动代码）不需要知道 Grid/Snake/CollisionDetector
- * 之间如何协作，只需要 new GameEngine(options) 然后调用 start()/dispose() 等少量方法。
- * 子系统之间的"先 move 蛇，再检测碰撞，再判断是否吃到食物，再决定是否结束游戏"
- * 这条核心规则链，集中写在这里的 tick() 方法里，方便单元测试与未来 Sprint 2
- * 在这条链路中插入"补码运算"步骤（替换吃食物后的逻辑，而不影响其余部分）。
+ * Sprint 1.5 新增：
+ * - DifficultyLevel 驱动网格大小与 tick 速度
+ * - FoodPool 维持 7 个食物同时存在
+ * - RevivalManager 实现 3 次免费复活 + 答题复活
+ * - onLengthChange 回调供 HUD 显示蛇长
  */
 export class GameEngine {
   readonly grid: Grid;
   readonly state: GameState;
   private snake: Snake;
-  private food: SimpleFood;
+  private readonly foodPool: FoodPool;
   private readonly collisionDetector: CollisionDetector;
   private readonly tickLoop: TickLoop;
   private readonly input: InputController;
+  private readonly revival: RevivalManager;
 
   private readonly cellSizePx: number;
+  private skinId: string;
   private score = 0;
 
   private readonly onRenderSnapshot: (snapshot: RenderSnapshot) => void;
   private readonly onScoreChange?: (score: number) => void;
+  private readonly onLengthChange?: (length: number) => void;
+  private readonly onRevivalsChange?: (remaining: number, total: number) => void;
 
   constructor(options: GameEngineOptions) {
-    this.grid = new Grid(options.grid);
+    const difficulty = options.difficulty ?? "MEDIUM";
+    const preset = DIFFICULTY_PRESETS[difficulty];
+
+    const gridConfig = options.grid ?? preset.grid;
+    const tickIntervalMs = options.tickIntervalMs ?? preset.tickIntervalMs;
+
+    this.grid = new Grid(gridConfig);
     this.state = new GameState();
     this.cellSizePx = options.cellSizePx;
+    this.skinId = options.skinId ?? "default";
     this.onRenderSnapshot = options.onRenderSnapshot;
     this.onScoreChange = options.onScoreChange;
+    this.onLengthChange = options.onLengthChange;
+    this.onRevivalsChange = options.onRevivalsChange;
 
     this.snake = this.createInitialSnake();
     this.collisionDetector = new CollisionDetector(this.grid);
-    this.food = this.spawnFood();
+    this.foodPool = new FoodPool(this.grid);
+
+    this.revival = new RevivalManager({
+      onFreeRevive: () => this.doRevive(),
+      onQuizRequired: () => {
+        // 暂停游戏，等待外部答题弹窗
+        this.tickLoop.stop();
+        this.state.startReviving();
+        options.onQuizRequired?.();
+      },
+      onReviveGranted: () => this.doRevive(),
+      onRevivalFailed: () => {
+        this.state.resumeAfterRevival(); // REVIVING → PLAYING (临时)
+        this.state.end();                // PLAYING → GAME_OVER
+        this.renderFrame();
+        options.onRevivalFailed?.();
+      },
+    });
 
     this.tickLoop = new TickLoop({
-      tickIntervalMs: options.tickIntervalMs ?? 150,
+      tickIntervalMs,
       onTick: () => this.tick(),
       onRender: () => this.renderFrame(),
     });
@@ -79,14 +128,20 @@ export class GameEngine {
   start(): void {
     if (this.state.is("PLAYING")) return;
 
-    // 无论从 IDLE 还是 GAME_OVER 进入，都重新构造一条新蛇、新分数、新食物。
-    if (this.state.is("GAME_OVER")) {
-      this.state.reset();
+    if (this.state.is("GAME_OVER") || this.state.is("REVIVING")) {
+      this.state.transition("IDLE");
     }
+
     this.snake = this.createInitialSnake();
     this.score = 0;
     this.onScoreChange?.(this.score);
-    this.food = this.spawnFood();
+    this.onLengthChange?.(this.snake.length);
+
+    this.revival.reset();
+    this.onRevivalsChange?.(this.revival.remaining, this.revival.total);
+
+    const occupied = new Set(this.snake.body.map((c) => Grid.cellKey(c)));
+    this.foodPool.init(occupied);
 
     this.state.start();
     this.tickLoop.start();
@@ -103,6 +158,27 @@ export class GameEngine {
     return this.score;
   }
 
+  getSnakeLength(): number {
+    return this.snake.length;
+  }
+
+  /** 外部答题结果：答对，授予复活。 */
+  submitQuizSuccess(): void {
+    if (!this.state.is("REVIVING")) return;
+    this.revival.grantRevival();
+  }
+
+  /** 外部答题结果：答错或超时，游戏结束。 */
+  submitQuizFailure(): void {
+    if (!this.state.is("REVIVING")) return;
+    this.revival.failRevival();
+  }
+
+  /** 更新皮肤 ID（下一帧生效）。 */
+  setSkin(skinId: string): void {
+    this.skinId = skinId;
+  }
+
   private createInitialSnake(): Snake {
     const startX = Math.floor(this.grid.columns / 2);
     const startY = Math.floor(this.grid.rows / 2);
@@ -111,16 +187,6 @@ export class GameEngine {
       direction: "RIGHT",
       initialLength: 3,
     });
-  }
-
-  private spawnFood(): SimpleFood {
-    const occupied = new Set(this.snake.body.map((c) => Grid.cellKey(c)));
-    const position = this.grid.randomEmptyCell(occupied);
-    // 网格够大时几乎不可能为 null；兜底放在网格中心避免类型上出现 null 分支扩散。
-    return new SimpleFood(
-      position ?? { x: 0, y: 0 },
-      1,
-    );
   }
 
   private handleDirectionInput(direction: Direction): void {
@@ -136,21 +202,51 @@ export class GameEngine {
 
     const collision = this.collisionDetector.checkSelfCollision(this.snake);
     if (this.collisionDetector.isFatal(collision)) {
-      this.state.end();
+      // 不直接 GAME_OVER，而是先问 RevivalManager
       this.tickLoop.stop();
+      this.revival.tryRevive();
+      this.onRevivalsChange?.(this.revival.remaining, this.revival.total);
       this.renderFrame();
       return;
     }
 
-    if (cellsEqual(this.snake.head, this.food.position)) {
-      // Sprint 1 DoD：吃到普通食物只是单纯 +1 变长，不含补码运算。
-      this.snake.grow(this.food.growthAmount);
+    const occupied = new Set(this.snake.body.map((c) => Grid.cellKey(c)));
+    const growth = this.foodPool.tryEat(this.snake.head, occupied);
+    if (growth > 0) {
+      this.snake.grow(growth);
       this.score += 1;
       this.onScoreChange?.(this.score);
-
-      const occupied = new Set(this.snake.body.map((c) => Grid.cellKey(c)));
-      this.food.respawn(this.grid, occupied);
+      this.onLengthChange?.(this.snake.length);
     }
+  }
+
+  /** 复活：把蛇重置到出生位置，恢复游戏循环。 */
+  private doRevive(): void {
+    // 保留蛇的长度，但重置位置到中心，避免蛇头还在墙里
+    const len = this.snake.length;
+    this.snake = new Snake({
+      start: {
+        x: Math.floor(this.grid.columns / 2),
+        y: Math.floor(this.grid.rows / 2),
+      },
+      direction: "RIGHT",
+      initialLength: len,
+    });
+
+    // 重新初始化食物，避免与复活后的蛇身重叠
+    const occupied = new Set(this.snake.body.map((c) => Grid.cellKey(c)));
+    this.foodPool.init(occupied);
+
+    if (this.state.is("REVIVING")) {
+      this.state.resumeAfterRevival();
+    } else {
+      // 免费复活路径：此时仍在 PLAYING
+    }
+
+    this.onRevivalsChange?.(this.revival.remaining, this.revival.total);
+    this.onLengthChange?.(this.snake.length);
+    this.tickLoop.start();
+    this.renderFrame();
   }
 
   /** 渲染帧：每个 rAF 都调用，把当前逻辑状态打包成快照交给渲染器。 */
@@ -158,8 +254,10 @@ export class GameEngine {
     this.onRenderSnapshot({
       grid: this.grid.config,
       snakeBody: this.snake.body,
-      food: this.food.position,
+      snakeDirection: this.snake.direction,
+      foods: this.foodPool.getAll(),
       cellSizePx: this.cellSizePx,
+      skinId: this.skinId,
     });
   }
 }

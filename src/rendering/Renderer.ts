@@ -1,21 +1,24 @@
-import type { Cell, GridConfig } from "../engine/core/types";
+import type { Cell, GridConfig, Direction } from "../engine/core/types";
 
 /** 渲染器需要的只读游戏快照——不关心游戏内部如何运作，只关心"画什么"。 */
 export interface RenderSnapshot {
   readonly grid: GridConfig;
   readonly snakeBody: readonly Cell[];
-  readonly food: Cell | null;
+  readonly snakeDirection: Direction;
+  /** Sprint 1.5：食物池，始终有 7 个食物同时存在。 */
+  readonly foods: readonly Cell[];
   readonly cellSizePx: number;
+  /** 皮肤 ID，"default" 为纯色，其他值对应 public/assets/snake/{skinId}/ 下的图片皮肤。 */
+  readonly skinId: string;
 }
 
 /**
  * Renderer：渲染器的抽象基类。
  *
- * Sprint 1 阶段只有一个具体实现（见 main.ts 中的 CanvasRenderer，单机场景无需区分 Host/Client 视角）。
+ * Sprint 1 阶段只有一个具体实现（CanvasRenderer）。
  * 之所以仍按目录结构要求提前定义这个抽象基类，是为了在 Sprint 6 引入
- * HostViewRenderer（上帝视角，看到全图与所有玩家）与 ClientViewRenderer
- * （局部视野裁剪）时，两者可以复用同一套"挂载 canvas / resize / clear / drawCell"
- * 基础设施，只重写"画什么范围"的逻辑，而不必每个子类重新实现 Canvas 生命周期管理。
+ * HostViewRenderer 与 ClientViewRenderer 时，两者可以复用同一套
+ * "挂载 canvas / resize / clear / drawCell" 基础设施，只重写"画什么范围"的逻辑。
  */
 export abstract class Renderer {
   protected readonly canvas: HTMLCanvasElement;

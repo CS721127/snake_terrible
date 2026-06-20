@@ -1,24 +1,27 @@
-export type GamePhase = "IDLE" | "PLAYING" | "GAME_OVER";
+export type GamePhase = "IDLE" | "PLAYING" | "REVIVING" | "GAME_OVER";
 
 type StateChangeListener = (next: GamePhase, prev: GamePhase) => void;
 
 /** 合法的状态迁移表：key 为当前状态，value 为该状态允许迁移到的目标状态集合。 */
 const ALLOWED_TRANSITIONS: Readonly<Record<GamePhase, readonly GamePhase[]>> = {
   IDLE: ["PLAYING"],
-  PLAYING: ["GAME_OVER", "IDLE"], // 允许 PLAYING -> IDLE，用于"中途重置"场景
+  PLAYING: ["GAME_OVER", "IDLE", "REVIVING"],
+  // REVIVING：等待答题中，可以复活回 PLAYING，也可以答错直接 GAME_OVER
+  REVIVING: ["PLAYING", "GAME_OVER", "IDLE"],
   GAME_OVER: ["IDLE"],
 };
 
 /**
  * GameState：单机游戏的状态机。
  *
- * Idle    —— 尚未开始 / 等待玩家操作开始游戏（显示开始界面）
- * Playing —— 游戏进行中（TickLoop 驱动蛇移动）
- * GameOver—— 发生致命碰撞后进入，显示结算界面，等待玩家重新开始
+ * Idle     —— 尚未开始 / 等待玩家操作开始游戏（显示开始界面）
+ * Playing  —— 游戏进行中（TickLoop 驱动蛇移动）
+ * Reviving —— 发生碰撞后，等待玩家答题或消耗免费复活次数（TickLoop 暂停）
+ * GameOver —— 致命碰撞且复活失败后进入，显示结算界面
  *
  * 设计取舍：用显式的迁移白名单（ALLOWED_TRANSITIONS）而不是"想到哪写到哪"的 if/else，
- * 是因为状态机最容易在项目变大后出现"本不该发生的跳转"（例如 GameOver 时收到 PLAYING 请求
- * 又把游戏复活了），显式表驱动可以在出问题的第一时间 throw，而不是悄悄进入不一致状态。
+ * 是因为状态机最容易在项目变大后出现"本不该发生的跳转"，显式表驱动可以在出问题的
+ * 第一时间提前阻断，而不是悄悄进入不一致状态。
  */
 export class GameState {
   private phase: GamePhase = "IDLE";
@@ -41,7 +44,7 @@ export class GameState {
   /**
    * 尝试迁移到目标状态。
    * @param next 目标状态
-   * @returns 是否成功迁移（非法迁移返回 false 而不是抛错，方便调用处用 if 守卫而不必 try/catch）
+   * @returns 是否成功迁移（非法迁移返回 false 而不是抛错）
    */
   transition(next: GamePhase): boolean {
     if (next === this.phase) return false;
@@ -70,5 +73,15 @@ export class GameState {
   /** 语义化快捷方法：重置回 Idle，准备下一局。 */
   reset(): boolean {
     return this.transition("IDLE");
+  }
+
+  /** 语义化快捷方法：进入复活等待状态（暂停游戏，等待答题）。 */
+  startReviving(): boolean {
+    return this.transition("REVIVING");
+  }
+
+  /** 语义化快捷方法：复活成功，恢复游戏。 */
+  resumeAfterRevival(): boolean {
+    return this.transition("PLAYING");
   }
 }

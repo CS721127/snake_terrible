@@ -3,43 +3,114 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Complement-Snake // Sprint 1</title>
+    <title>Complement-Snake // Sprint 1.5</title>
+    <meta name="description" content="Complement-Snake：补码蛇游戏 Sprint 1.5 —— 复活机制、难度分级、皮肤系统、食物池与主题切换。" />
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
     <div id="app">
-      <header class="hud">
+
+      <!-- ===== HUD ===== -->
+      <header class="hud" role="banner">
         <div class="hud__brand">
-          <span class="hud__brand-glyph">01</span>
+          <span class="hud__brand-glyph" aria-hidden="true">01</span>
           <span class="hud__brand-name">COMPLEMENT&nbsp;_&nbsp;SNAKE</span>
         </div>
+
         <div class="hud__stats">
-          <div class="hud__stat">
+          <!-- 蛇长（DEC） -->
+          <div class="hud__stat" title="蛇身长度（十进制）">
+            <span class="hud__stat-label">LEN_DEC</span>
+            <span class="hud__stat-value" id="len-dec">3</span>
+          </div>
+          <!-- 蛇长（HEX） -->
+          <div class="hud__stat hud__stat--hex" title="蛇身长度（十六进制）">
+            <span class="hud__stat-label">LEN_HEX</span>
+            <span class="hud__stat-value" id="len-hex">0x03</span>
+          </div>
+          <!-- 蛇长（BIN） -->
+          <div class="hud__stat hud__stat--bin" title="蛇身长度（二进制）">
+            <span class="hud__stat-label">LEN_BIN</span>
+            <span class="hud__stat-value" id="len-bin">0b0011</span>
+          </div>
+          <!-- 得分 -->
+          <div class="hud__stat" title="得分">
             <span class="hud__stat-label">SCORE</span>
             <span class="hud__stat-value" id="score-dec">0</span>
           </div>
-          <div class="hud__stat hud__stat--hex">
-            <span class="hud__stat-label">HEX</span>
-            <span class="hud__stat-value" id="score-hex">0x00</span>
-          </div>
-          <div class="hud__stat">
+          <!-- STATE -->
+          <div class="hud__stat hud__stat--state">
             <span class="hud__stat-label">STATE</span>
             <span class="hud__stat-value" id="phase-label">IDLE</span>
           </div>
+          <!-- 复活次数 -->
+          <div class="hud__revivals" id="revivals-display" title="剩余免费复活次数" aria-label="复活次数">
+            <span class="hud__stat-label" style="margin-right:4px">LIFE</span>
+            <span class="revival-pip" id="pip-0" aria-hidden="true"></span>
+            <span class="revival-pip" id="pip-1" aria-hidden="true"></span>
+            <span class="revival-pip" id="pip-2" aria-hidden="true"></span>
+          </div>
+        </div>
+
+        <div class="hud__controls">
+          <button class="btn-icon" id="theme-toggle" title="切换 dark/light 主题" aria-label="切换主题">
+            🌙
+          </button>
         </div>
       </header>
 
+      <!-- ===== 难度选择工具栏 ===== -->
+      <div class="toolbar" role="toolbar" aria-label="游戏设置">
+        <span class="toolbar__label">DIFFICULTY</span>
+        <div class="difficulty-tabs" role="tablist" id="difficulty-tabs">
+          <button class="difficulty-tab" role="tab" aria-selected="false" data-difficulty="EASY" id="tab-easy">EASY</button>
+          <button class="difficulty-tab" role="tab" aria-selected="true"  data-difficulty="MEDIUM" id="tab-medium">MEDIUM</button>
+          <button class="difficulty-tab" role="tab" aria-selected="false" data-difficulty="HARD" id="tab-hard">HARD</button>
+        </div>
+        <span class="toolbar__grid-info" id="grid-size-label">28×28 · 150ms</span>
+      </div>
+
+      <!-- ===== 皮肤选择器 ===== -->
+      <div class="skin-selector" role="region" aria-label="蛇皮肤选择">
+        <span class="skin-selector__label">SKIN</span>
+        <div class="skin-cards" id="skin-cards" role="listbox" aria-label="选择皮肤">
+
+          <button class="skin-card" role="option" aria-selected="true" data-skin="default" id="skin-default">
+            <div class="skin-card__preview skin-card__preview--default" aria-hidden="true"></div>
+            <span class="skin-card__name">DEFAULT</span>
+          </button>
+
+          <button class="skin-card" role="option" aria-selected="false" data-skin="classic" id="skin-classic">
+            <div class="skin-card__preview" aria-hidden="true">
+              <img src="/assets/snake/classic/head.png" alt="classic 皮肤预览" />
+            </div>
+            <span class="skin-card__name">CLASSIC</span>
+          </button>
+
+          <button class="skin-card" role="option" aria-selected="false" data-skin="neon" id="skin-neon">
+            <div class="skin-card__preview" aria-hidden="true">
+              <img src="/assets/snake/neon/head.png" alt="neon 皮肤预览" />
+            </div>
+            <span class="skin-card__name">NEON</span>
+          </button>
+
+        </div>
+      </div>
+
+      <!-- ===== 游戏画面 ===== -->
       <main class="stage">
         <div class="stage__board">
           <canvas id="game-canvas" aria-label="Complement-Snake 游戏画面"></canvas>
 
-          <div id="overlay" class="overlay" data-visible="true">
+          <!-- 开始 / GAME_OVER overlay -->
+          <div id="overlay" class="overlay" data-visible="true" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
             <div class="overlay__panel">
-              <p class="overlay__eyebrow">SPRINT 1 // 单机核心引擎</p>
+              <p class="overlay__eyebrow">SPRINT 1.5 // 复活 &amp; 皮肤</p>
               <h1 class="overlay__title" id="overlay-title">READY?</h1>
               <p class="overlay__desc" id="overlay-desc">
-                方向键 / WASD / 滑动屏幕控制移动。撞墙或撞到自己的身体，进程终止。
+                方向键 / WASD / 滑动屏幕控制移动。
+                碰撞时有 3 次免费复活；耗尽后须答题复活。
               </p>
               <button class="overlay__cta" id="start-button" type="button">
                 START_GAME()
@@ -49,10 +120,37 @@
           </div>
         </div>
 
-        <p class="stage__footnote">
-          tick = 150ms · grid = <span id="grid-size-label"></span> · 普通食物 +1（补码玩法将在 Sprint 2 接管）
+        <p class="stage__footnote" id="footnote-label">
+          tick = 150ms · grid = <span id="grid-size-inline">28×28</span> · 食物池 = 7
         </p>
       </main>
+
+    </div><!-- /#app -->
+
+    <!-- ===== 答题弹窗 ===== -->
+    <div id="quiz-modal" class="quiz-modal" data-visible="false" role="dialog" aria-modal="true" aria-labelledby="quiz-question">
+      <div class="quiz-modal__panel">
+        <p class="quiz-modal__eyebrow">REVIVAL_QUIZ</p>
+        <p class="quiz-modal__question" id="quiz-question">7 + 8 = ?</p>
+
+        <div class="quiz-modal__timer-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" id="quiz-timer-bar-wrapper">
+          <div class="quiz-modal__timer-fill" id="quiz-timer-fill"></div>
+        </div>
+
+        <div class="quiz-modal__input-row">
+          <input
+            class="quiz-modal__input"
+            type="number"
+            id="quiz-input"
+            placeholder="?"
+            aria-label="输入答案"
+            autocomplete="off"
+          />
+          <button class="quiz-modal__submit" id="quiz-submit" type="button">SUBMIT</button>
+        </div>
+
+        <p class="quiz-modal__feedback" id="quiz-feedback" data-visible="false"></p>
+      </div>
     </div>
 
     <script type="module" src="/src/main.ts"></script>
