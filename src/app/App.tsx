@@ -5,15 +5,26 @@ import {
   DIFFICULTY_GRID,
 } from "@/app/constants";
 import { normalizeRoomCode } from "@/app/format";
-import type { HudState, QuizViewState, RoomFormState, ThemeMode } from "@/app/types";
+import type {
+  BonusChallengeViewState,
+  HudState,
+  LengthChoiceViewState,
+  QuizViewState,
+  RoomFormState,
+  ThemeMode,
+} from "@/app/types";
+import { BonusChallengeModal } from "@/components/BonusChallengeModal";
 import { DifficultyToolbar } from "@/components/DifficultyToolbar";
 import { GameStage } from "@/components/GameStage";
 import { Hud } from "@/components/Hud";
+import { LengthChoiceModal } from "@/components/LengthChoiceModal";
 import { QuizModal } from "@/components/QuizModal";
 import { RealtimePanel } from "@/components/RealtimePanel";
 import { SkinSelector } from "@/components/SkinSelector";
 import { GameEngine } from "@/engine/GameEngine";
 import type { DifficultyLevel } from "@/engine/GameEngine";
+import { generateLengthChoices } from "@/engine/bitwise/LengthChoices";
+import type { LengthChoice } from "@/engine/bitwise/LengthChoices";
 import { InputController } from "@/engine/core/InputController";
 import { QuizEngine } from "@/engine/revival/QuizEngine";
 import type { QuizQuestion } from "@/engine/revival/QuizEngine";
@@ -34,6 +45,11 @@ const INITIAL_HUD: HudState = {
   phase: "IDLE",
   revivalsRemaining: 3,
   revivalsTotal: 3,
+  timeRemainingMs: 180_000,
+  totalTimeMs: 180_000,
+  targetScore: 5,
+  patternDescription: "waiting",
+  gameResult: null,
 };
 
 const INITIAL_QUIZ: QuizViewState = {
@@ -44,6 +60,21 @@ const INITIAL_QUIZ: QuizViewState = {
   isUrgent: false,
   feedback: "",
   feedbackOk: false,
+};
+
+const INITIAL_LENGTH_CHOICES: LengthChoiceViewState = {
+  visible: false,
+  reason: "START",
+  choices: [],
+};
+
+const INITIAL_BONUS: BonusChallengeViewState = {
+  visible: false,
+  challenge: null,
+  answerText: "",
+  feedback: "",
+  feedbackOk: false,
+  resolved: false,
 };
 
 function createEmptySnapshot(
@@ -104,6 +135,9 @@ export function App(): JSX.Element {
   const currentQuizRef = useRef<QuizQuestion | null>(null);
   const quizIntervalRef = useRef<number | null>(null);
   const quizResolutionRef = useRef<number | null>(null);
+  const [lengthChoices, setLengthChoices] =
+    useState<LengthChoiceViewState>(INITIAL_LENGTH_CHOICES);
+  const [bonus, setBonus] = useState<BonusChallengeViewState>(INITIAL_BONUS);
 
   const [roomForm, setRoomForm] = useState<RoomFormState>({
     roomCode: DEFAULT_ROOM_CODE,
@@ -159,6 +193,7 @@ export function App(): JSX.Element {
     setQuiz({
       visible: true,
       question: question.question,
+      imageSrc: question.imageSrc,
       answerText: "",
       timerRatio: 1,
       isUrgent: false,
@@ -348,6 +383,29 @@ export function App(): JSX.Element {
       onRevivalFailed: () => {
         // The engine has already moved into GAME_OVER and rendered the final frame.
       },
+      onLengthChoicesRequired: (request) => {
+        setLengthChoices({ ...request, visible: true });
+      },
+      onPatternChange: (goal) => {
+        setHudPatch({ patternDescription: goal.description });
+      },
+      onTimerChange: (timeRemainingMs, totalTimeMs) => {
+        setHudPatch({ timeRemainingMs, totalTimeMs });
+      },
+      onGameResultChange: (gameResult) => {
+        setHudPatch({ gameResult });
+      },
+      onBonusChallengeChange: (challenge, resolved) => {
+        setBonus({
+          visible: Boolean(challenge),
+          challenge,
+          answerText: "",
+          feedback: "",
+          feedbackOk: false,
+          resolved,
+        });
+      },
+      onSkinChange: setSkinId,
     });
 
     engineRef.current = engine;
@@ -367,6 +425,7 @@ export function App(): JSX.Element {
     renderEmptyBoard,
     roomForm.role,
     setHudPatch,
+    setSkinId,
     showQuiz,
   ]);
 
@@ -405,11 +464,30 @@ export function App(): JSX.Element {
       return;
     }
 
-    engineRef.current?.start();
-    if (latestSnapshotRef.current) {
-      publishHostSnapshot(latestSnapshotRef.current, true);
-    }
-  }, [connectedRoom, publishCommand, publishHostSnapshot, sessionId, status]);
+    setLengthChoices({
+      visible: true,
+      reason: "START",
+      choices: generateLengthChoices(),
+    });
+  }, [connectedRoom, publishCommand, sessionId, status]);
+
+  const handleLengthChoice = useCallback(
+    (choice: LengthChoice) => {
+      const reason = lengthChoices.reason;
+      setLengthChoices(INITIAL_LENGTH_CHOICES);
+
+      if (reason === "START") {
+        engineRef.current?.start(choice.resultLength, choice.reversed);
+      } else {
+        engineRef.current?.applyLengthChoice(choice);
+      }
+
+      if (latestSnapshotRef.current) {
+        publishHostSnapshot(latestSnapshotRef.current, true);
+      }
+    },
+    [lengthChoices.reason, publishHostSnapshot],
+  );
 
   useEffect(() => {
     const handleSpace = (event: KeyboardEvent) => {
@@ -473,6 +551,30 @@ export function App(): JSX.Element {
       finishQuiz(false, 1_200);
     }
   }, [finishQuiz, quiz.answerText]);
+
+  const handleBonusAnswerChange = useCallback((answerText: string) => {
+    setBonus((prev) => ({
+      ...prev,
+      answerText,
+      feedback: "",
+    }));
+  }, []);
+
+  const handleBonusSubmit = useCallback(() => {
+    const result = engineRef.current?.submitBonusAnswer(bonus.answerText);
+    if (!result) return;
+
+    setBonus((prev) => ({
+      ...prev,
+      feedback: result.message,
+      feedbackOk: result.ok,
+      resolved: result.ok ? true : prev.resolved,
+    }));
+  }, [bonus.answerText]);
+
+  const handleBonusClose = useCallback(() => {
+    setBonus((prev) => ({ ...prev, visible: false }));
+  }, []);
 
   const handleConnect = useCallback(() => {
     const roomCode = normalizeRoomCode(roomForm.roomCode);
@@ -540,6 +642,18 @@ export function App(): JSX.Element {
         onAnswerChange={handleQuizAnswerChange}
         onSubmit={handleQuizSubmit}
         state={quiz}
+      />
+
+      <LengthChoiceModal
+        onChoose={handleLengthChoice}
+        state={lengthChoices}
+      />
+
+      <BonusChallengeModal
+        onAnswerChange={handleBonusAnswerChange}
+        onClose={handleBonusClose}
+        onSubmit={handleBonusSubmit}
+        state={bonus}
       />
     </div>
   );

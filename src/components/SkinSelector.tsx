@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { SKINS } from "@/app/constants";
 
 interface SkinSelectorProps {
@@ -30,10 +31,24 @@ export function SkinSelector({
               className={
                 skin.previewSrc
                   ? "skin-card__preview"
-                  : "skin-card__preview skin-card__preview--default"
+                  : "skin-card__preview skin-card__preview--placeholder"
+              }
+              style={
+                skin.previewSrc
+                  ? undefined
+                  : {
+                      "--skin-head": skin.placeholder.headColor,
+                      "--skin-body": skin.placeholder.bodyColor,
+                    } as CSSProperties
               }
             >
-              {skin.previewSrc ? <img alt="" src={skin.previewSrc} /> : null}
+              {skin.previewSrc ? (
+                <img alt="" src={skin.previewSrc} />
+              ) : (
+                <span className="skin-card__placeholder-text">
+                  {skin.placeholder.initials.slice(0, 2)}
+                </span>
+              )}
             </span>
             <span className="skin-card__name">{skin.label}</span>
           </button>
@@ -42,4 +57,3 @@ export function SkinSelector({
     </section>
   );
 }
-

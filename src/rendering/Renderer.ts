@@ -1,4 +1,5 @@
 import type { Cell, GridConfig, Direction } from "../engine/core/types";
+import type { BitwiseFoodSnapshot } from "../engine/bitwise/BitwiseFood";
 
 /** 渲染器需要的只读游戏快照——不关心游戏内部如何运作，只关心"画什么"。 */
 export interface RenderSnapshot {
@@ -6,7 +7,7 @@ export interface RenderSnapshot {
   readonly snakeBody: readonly Cell[];
   readonly snakeDirection: Direction;
   /** Sprint 1.5：食物池，始终有 7 个食物同时存在。 */
-  readonly foods: readonly Cell[];
+  readonly foods: readonly BitwiseFoodSnapshot[];
   readonly cellSizePx: number;
   /** 皮肤 ID，"default" 为纯色，其他值对应 public/assets/snake/{skinId}/ 下的图片皮肤。 */
   readonly skinId: string;

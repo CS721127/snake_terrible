@@ -38,7 +38,7 @@ export function GameStage({
         }
       : {
           title: "READY?",
-          desc: "Arrow keys, WASD, or touch swipes control movement. Three free revivals are available before the quiz gate.",
+          desc: "Choose a 16-bit starting length, then use Arrow keys, WASD, or touch swipes to chase bitwise food.",
           cta: "START_GAME()",
           state: "idle",
         };
@@ -72,7 +72,7 @@ export function GameStage({
       </div>
 
       <p className="stage__footnote">
-        tick = {meta.tick} / grid = {meta.grid} / food_pool = 7
+        tick = {meta.tick} / grid = {meta.grid} / food_pool = 8 / time_limit = 3:00
       </p>
     </main>
   );

@@ -1,6 +1,9 @@
 import { Renderer } from "./Renderer";
 import type { RenderSnapshot } from "./Renderer";
 import type { Direction } from "../engine/core/types";
+import type { BitwiseFoodSnapshot } from "../engine/bitwise/BitwiseFood";
+import { getSkinAsset } from "../engine/skins";
+import type { SkinAsset } from "../engine/skins";
 
 /**
  * SkinImageCache：管理图片皮肤的 HTMLImageElement 缓存。
@@ -13,6 +16,9 @@ class SkinImageCache {
   /** 触发加载（非阻塞），加载完成后下一帧自动使用。 */
   preload(skinId: string): void {
     if (this.cache.has(skinId) || this.loading.has(skinId)) return;
+    const asset = getSkinAsset(skinId);
+    if (!asset.headSrc || !asset.bodySrc) return;
+
     this.loading.add(skinId);
 
     const head = new Image();
@@ -33,8 +39,8 @@ class SkinImageCache {
     head.onerror = () => this.loading.delete(skinId);
     body.onerror = () => this.loading.delete(skinId);
 
-    head.src = `/assets/snake/${skinId}/head.png`;
-    body.src = `/assets/snake/${skinId}/body.png`;
+    head.src = asset.headSrc;
+    body.src = asset.bodySrc;
   }
 
   get(skinId: string): { head: HTMLImageElement; body: HTMLImageElement } | null {
@@ -63,8 +69,9 @@ export class CanvasRenderer extends Renderer {
       this.lastResizedKey = resizeKey;
     }
 
+    const skinAsset = getSkinAsset(skinId);
     // 预加载图片皮肤（如果还没加载）
-    if (skinId !== "default") {
+    if (skinAsset.headSrc && skinAsset.bodySrc) {
       this.skinCache.preload(skinId);
     }
 
@@ -75,11 +82,13 @@ export class CanvasRenderer extends Renderer {
     this.drawGridBackground(grid, cellSizePx);
 
     for (const food of foods) {
-      this.drawFood(food.x, food.y, cellSizePx);
+      this.drawFood(food, cellSizePx);
     }
 
-    const images = skinId !== "default" ? this.skinCache.get(skinId) : null;
-    this.drawSnake(snakeBody, snakeDirection, cellSizePx, images);
+    const images = skinAsset.headSrc && skinAsset.bodySrc
+      ? this.skinCache.get(skinId)
+      : null;
+    this.drawSnake(snakeBody, snakeDirection, cellSizePx, images, skinAsset);
   }
 
   /** 棋盘格背景，明暗交替的暗绿色块，模拟"内存页"的视觉质感。 */
@@ -108,6 +117,7 @@ export class CanvasRenderer extends Renderer {
     direction: Direction,
     cellSizePx: number,
     images: { head: HTMLImageElement; body: HTMLImageElement } | null,
+    skinAsset: SkinAsset,
   ): void {
     const { ctx } = this;
     const padding = Math.max(1, Math.floor(cellSizePx * 0.08));
@@ -136,7 +146,9 @@ export class CanvasRenderer extends Renderer {
         }
       } else {
         // 默认纯色模式
-        ctx.fillStyle = isHead ? "#9BFFC2" : "#39FF6A";
+        ctx.fillStyle = isHead
+          ? skinAsset.placeholder.headColor
+          : skinAsset.placeholder.bodyColor;
         ctx.fillRect(
           segment.x * cellSizePx + padding,
           segment.y * cellSizePx + padding,
@@ -154,27 +166,63 @@ export class CanvasRenderer extends Renderer {
             cellSizePx - padding * 2,
             cellSizePx - padding * 2,
           );
+          if (skinAsset.id !== "default") {
+            ctx.fillStyle = "#06130b";
+            ctx.font = `${Math.max(7, Math.floor(cellSizePx * 0.36))}px monospace`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(
+              skinAsset.placeholder.initials.slice(0, 2),
+              segment.x * cellSizePx + cellSizePx / 2,
+              segment.y * cellSizePx + cellSizePx / 2,
+            );
+          }
         }
       }
     }
   }
 
-  private drawFood(x: number, y: number, cellSizePx: number): void {
+  private drawFood(food: BitwiseFoodSnapshot, cellSizePx: number): void {
     const { ctx } = this;
-    const centerX = x * cellSizePx + cellSizePx / 2;
-    const centerY = y * cellSizePx + cellSizePx / 2;
+    const centerX = food.x * cellSizePx + cellSizePx / 2;
+    const centerY = food.y * cellSizePx + cellSizePx / 2;
     const radius = cellSizePx * 0.32;
 
-    ctx.fillStyle = "#FF4D6A";
+    ctx.fillStyle = this.foodColor(food.tone);
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.strokeStyle = "#FFC2CE";
+    ctx.strokeStyle = "#F8FAFC";
     ctx.lineWidth = Math.max(1, cellSizePx * 0.03);
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
     ctx.stroke();
+
+    ctx.fillStyle = "#06130b";
+    ctx.font = `${Math.max(7, Math.floor(cellSizePx * 0.36))}px monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(this.shortFoodLabel(food), centerX, centerY);
+  }
+
+  private shortFoodLabel(food: BitwiseFoodSnapshot): string {
+    if (food.operation === "~") return "~";
+    if (food.operation === "<<") return `L${food.value ?? 0}`;
+    if (food.operation === ">>") return `R${food.value ?? 0}`;
+    return `${food.operation}${(food.value ?? 0).toString(16).toUpperCase().padStart(2, "0")}`;
+  }
+
+  private foodColor(tone: string): string {
+    switch (tone) {
+      case "and": return "#67E8F9";
+      case "or": return "#FBBF24";
+      case "xor": return "#A78BFA";
+      case "shift-left": return "#34D399";
+      case "shift-right": return "#FB7185";
+      case "not": return "#F8FAFC";
+      default: return "#FF4D6A";
+    }
   }
 
   /** 将蛇的移动方向转换为头部图片的旋转角度（弧度），以 RIGHT 为 0° 基准。 */

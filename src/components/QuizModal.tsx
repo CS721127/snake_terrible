@@ -35,6 +35,10 @@ export function QuizModal({
           {state.question || "0 + 0 = ?"}
         </p>
 
+        {state.imageSrc ? (
+          <img alt="" className="quiz-modal__image" src={state.imageSrc} />
+        ) : null}
+
         <div
           aria-valuemax={100}
           aria-valuemin={0}

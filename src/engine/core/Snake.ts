@@ -1,5 +1,5 @@
 import type { Cell, Direction } from "./types";
-import { cellsEqual, isOppositeDirection, step } from "./types";
+import { DIRECTION_VECTORS, cellsEqual, isOppositeDirection, step } from "./types";
 
 export interface SnakeInitOptions {
   /** 蛇的初始头部位置。 */
@@ -88,6 +88,28 @@ export class Snake {
     this.pendingGrowth += amount;
   }
 
+  resizeToLength(targetLength: number): void {
+    const safeLength = Math.max(1, Math.floor(targetLength));
+
+    if (safeLength < this.bodyCells.length) {
+      this.bodyCells.length = safeLength;
+      this.pendingGrowth = 0;
+      return;
+    }
+
+    while (this.bodyCells.length < safeLength) {
+      this.bodyCells.push(this.nextTailCell());
+    }
+
+    this.pendingGrowth = 0;
+  }
+
+  reverseFromTail(): void {
+    this.bodyCells.reverse();
+    this.currentDirection = Snake.opposite(this.currentDirection);
+    this.pendingDirection = this.currentDirection;
+  }
+
   /**
    * 推进一帧：朝 pendingDirection 移动一格。
    * 返回移动后的新头部坐标，供 CollisionDetector 在 move 之后立即检测碰撞。
@@ -124,6 +146,24 @@ export class Snake {
     if (this.bodyCells.length > 1) {
       this.bodyCells.pop();
     }
+  }
+
+  private nextTailCell(): Cell {
+    const tail = this.tail;
+    const beforeTail = this.bodyCells[this.bodyCells.length - 2];
+
+    if (beforeTail) {
+      return {
+        x: tail.x + (tail.x - beforeTail.x),
+        y: tail.y + (tail.y - beforeTail.y),
+      };
+    }
+
+    const vector = DIRECTION_VECTORS[Snake.opposite(this.currentDirection)];
+    return {
+      x: tail.x + vector.x,
+      y: tail.y + vector.y,
+    };
   }
 
   /** 判断给定格子是否与蛇身（不含头部，或按需含头部）发生重叠，供 CollisionDetector 调用。 */

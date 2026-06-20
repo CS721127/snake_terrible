@@ -1,5 +1,5 @@
 import type { HudState, ThemeMode } from "@/app/types";
-import { formatBin, formatDec, formatHex } from "@/app/format";
+import { formatBin, formatDec, formatHex, formatTime } from "@/app/format";
 
 interface HudProps {
   readonly hud: HudState;
@@ -22,7 +22,13 @@ export function Hud({ hud, theme, onToggleTheme }: HudProps): JSX.Element {
         <Stat label="LEN_HEX" value={formatHex(hud.length)} tone="hex" />
         <Stat label="LEN_BIN" value={formatBin(hud.length)} tone="bin" />
         <Stat label="SCORE" value={String(hud.score)} />
+        <Stat label="TARGET" value={String(hud.targetScore)} />
+        <Stat label="TIME" value={formatTime(hud.timeRemainingMs)} tone="state" />
         <Stat label="STATE" value={hud.phase} tone="state" />
+        <Stat label="PATTERN" value={hud.patternDescription} tone="bin" />
+        {hud.gameResult ? (
+          <Stat label="RESULT" value={hud.gameResult} tone="state" />
+        ) : null}
 
         <div className="hud__revivals" title="Remaining free revivals">
           <span className="hud__stat-label">LIFE</span>
