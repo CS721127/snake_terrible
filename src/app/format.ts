@@ -1,14 +1,23 @@
-export function formatDec(n: number): string {
-  return String(n);
-}
-
-export function formatHex(n: number): string {
-  return `0x${n.toString(16).toUpperCase().padStart(2, "0")}`;
-}
-
 export function formatBin(n: number): string {
-  const width = Math.max(4, Math.ceil(n.toString(2).length / 4) * 4);
-  return `0b${n.toString(2).padStart(width, "0")}`;
+  return `0b${(n & 0xff).toString(2).padStart(8, "0")}`;
+}
+
+export function formatTime(ms: number): string {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+/** Format run duration for the summary modal to 0.1s, finer than HUD countdown whole seconds. */
+export function formatDuration(ms: number): string {
+  // Round to 0.1s first, then split minutes/seconds, avoiding edge cases (e.g. 59.96s)
+  // displaying as "X:60.0" without carrying to the next minute.
+  const totalTenths = Math.round(Math.max(0, ms) / 100);
+  const minutes = Math.floor(totalTenths / 600);
+  const remainderTenths = totalTenths % 600;
+  const seconds = remainderTenths / 10;
+  return `${minutes}:${seconds.toFixed(1).padStart(4, "0")}`;
 }
 
 export function normalizeRoomCode(value: string): string {
@@ -21,4 +30,3 @@ export function normalizeRoomCode(value: string): string {
 
   return normalized || "ROOM-01";
 }
-

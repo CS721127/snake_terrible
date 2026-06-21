@@ -2,13 +2,12 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { InputController } from "../InputController";
 
 /**
- * 测试策略：
- * InputController 内部用 performance.now() 做节流计时，这里手动 stub 它，
- * 让测试可以精确控制"两次输入之间经过了多少毫秒"，而不依赖真实时间流逝
- * （真实时间流逝的测试既慢又不稳定，容易在 CI 上偶发失败）。
+ * Test strategy:
+ * InputController uses performance.now() for throttling; stub it here
+ * so tests control exact ms between inputs without real time (slow, flaky on CI).
  *
- * DOM 事件通过 EventTarget 原生派发（KeyboardEvent / TouchEvent 在 jsdom 下可用），
- * 这样测试覆盖的是 InputController 真实绑定的事件处理路径，而不是绕过 DOM 直接调用私有方法。
+ * DOM events via native EventTarget dispatch (KeyboardEvent / TouchEvent work in jsdom),
+ * covering InputController's real bound handlers, not private method bypass.
  */
 describe("InputController", () => {
   let now = 0;
@@ -27,7 +26,7 @@ describe("InputController", () => {
     target.dispatchEvent(event);
   }
 
-  it("方向键触发对应的 Direction 事件", () => {
+  it("arrow keys emit the corresponding Direction", () => {
     const controller = new InputController(window);
     controller.attach();
     const listener = vi.fn();
@@ -39,7 +38,7 @@ describe("InputController", () => {
     controller.detach();
   });
 
-  it("WASD 键同样触发方向事件", () => {
+  it("WASD keys also emit direction events", () => {
     const controller = new InputController(window, { throttleMs: 0 });
     controller.attach();
     const listener = vi.fn();
@@ -57,7 +56,7 @@ describe("InputController", () => {
     controller.detach();
   });
 
-  it("非方向键不触发任何事件", () => {
+  it("non-direction keys emit no events", () => {
     const controller = new InputController(window, { throttleMs: 0 });
     controller.attach();
     const listener = vi.fn();
@@ -69,7 +68,7 @@ describe("InputController", () => {
     controller.detach();
   });
 
-  it("节流：短时间内的第二次输入被忽略", () => {
+  it("throttle: second input within the window is ignored", () => {
     const controller = new InputController(window, { throttleMs: 60 });
     controller.attach();
     const listener = vi.fn();
@@ -78,18 +77,18 @@ describe("InputController", () => {
     dispatchKey(window, "ArrowUp");
     expect(listener).toHaveBeenCalledTimes(1);
 
-    now += 30; // 仅过去 30ms，小于节流窗口 60ms
+    now += 30; // only 30ms elapsed, less than 60ms throttle window
     dispatchKey(window, "ArrowDown");
-    expect(listener).toHaveBeenCalledTimes(1); // 应被节流忽略
+    expect(listener).toHaveBeenCalledTimes(1); // should be throttled
 
-    now += 40; // 累计过去 70ms，超过节流窗口
+    now += 40; // 70ms total, past throttle window
     dispatchKey(window, "ArrowDown");
     expect(listener).toHaveBeenCalledTimes(2);
 
     controller.detach();
   });
 
-  it("detach 后不再响应事件", () => {
+  it("does not respond after detach", () => {
     const controller = new InputController(window, { throttleMs: 0 });
     controller.attach();
     const listener = vi.fn();
@@ -100,7 +99,7 @@ describe("InputController", () => {
     expect(listener).not.toHaveBeenCalled();
   });
 
-  it("onDirection 返回的取消订阅函数生效后不再收到事件", () => {
+  it("onDirection unsubscribe stops receiving events", () => {
     const controller = new InputController(window, { throttleMs: 0 });
     controller.attach();
     const listener = vi.fn();

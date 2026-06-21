@@ -2,25 +2,25 @@ import { describe, expect, it, vi } from "vitest";
 import { GameState } from "../GameState";
 
 describe("GameState", () => {
-  it("初始状态为 IDLE", () => {
+  it("initial state is IDLE", () => {
     const state = new GameState();
     expect(state.current).toBe("IDLE");
     expect(state.is("IDLE")).toBe(true);
   });
 
-  it("IDLE -> PLAYING 是合法迁移", () => {
+  it("IDLE -> PLAYING is a valid transition", () => {
     const state = new GameState();
     expect(state.start()).toBe(true);
     expect(state.current).toBe("PLAYING");
   });
 
-  it("IDLE -> GAME_OVER 是非法迁移，应被拒绝且状态不变", () => {
+  it("IDLE -> GAME_OVER is invalid and leaves state unchanged", () => {
     const state = new GameState();
     expect(state.transition("GAME_OVER")).toBe(false);
     expect(state.current).toBe("IDLE");
   });
 
-  it("PLAYING -> GAME_OVER -> IDLE 的完整生命周期", () => {
+  it("full lifecycle PLAYING -> GAME_OVER -> IDLE", () => {
     const state = new GameState();
     state.start();
     expect(state.end()).toBe(true);
@@ -29,7 +29,7 @@ describe("GameState", () => {
     expect(state.current).toBe("IDLE");
   });
 
-  it("GAME_OVER 状态下尝试直接 start() 应被拒绝（必须先 reset）", () => {
+  it("start() from GAME_OVER is rejected until reset()", () => {
     const state = new GameState();
     state.start();
     state.end();
@@ -37,7 +37,7 @@ describe("GameState", () => {
     expect(state.current).toBe("GAME_OVER");
   });
 
-  it("迁移到相同状态视为无效迁移，返回 false 且不触发监听器", () => {
+  it("transition to same state is invalid, returns false, no listener", () => {
     const state = new GameState();
     const listener = vi.fn();
     state.onChange(listener);
@@ -45,7 +45,7 @@ describe("GameState", () => {
     expect(listener).not.toHaveBeenCalled();
   });
 
-  it("onChange 监听器在合法迁移时被调用，参数为 (next, prev)", () => {
+  it("onChange listener fires on valid transition with (next, prev)", () => {
     const state = new GameState();
     const listener = vi.fn();
     state.onChange(listener);
@@ -53,7 +53,7 @@ describe("GameState", () => {
     expect(listener).toHaveBeenCalledWith("PLAYING", "IDLE");
   });
 
-  it("onChange 返回的取消函数可以成功取消订阅", () => {
+  it("onChange unsubscribe successfully cancels subscription", () => {
     const state = new GameState();
     const listener = vi.fn();
     const unsubscribe = state.onChange(listener);

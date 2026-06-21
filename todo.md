@@ -1,7 +1,5 @@
-撞墙/撞自己 → 复活机制：3次免费复活（保留长度），之后需答题。新增 RevivalManager + 占位 QuizEngine（简单算术题占位，等 Sprint2 替换为补码题）
-增大网格 + 难度可调网格大小
-难度等级：控制 答题难度/时限 + 网格大小 + 果子刷新密度，三档（简单/中等/困难）
-长度显示 HEX/DEC/BIN
-蛇皮肤系统：默认纯色 + 图片皮肤（public/assets/snake/{skinId}/head.png+body.png），皮肤选择UI
-食物池：始终维持7个食物同时存在
-dark/light 主题切换
+- Skins must handle a special case: UNSW and a series of other universities as one skin; UNSW always appears first as the head; the snake body then follows in order with Melbourne University, Sydney University, and other universities; after all universities have been added to the snake, further length is added starting after the head (UNSW), and those segments use the same UNSW logo
+- Other skins stay the same, but keep only 3 additional skins
+
+- Remove fullscreen feature
+- Add a timer that tracks how long after game start the game ended and how many times the user pressed direction keys; after the game ends (including after revival failures), show a summary modal saying congratulations on wasting X time and Y key presses; when the user then clicks the exit button, play a video and show "Sorry, please click here to exit" in the top-left corner; when the user clicks, show an image and display an X exit button in the top-left corner: when the user's mouse moves to click, the X button starts moving and always stays a certain distance from the mouse; after 5 seconds, show a math problem (a particularly complex, very hard-to-understand question, but the answer is 0); when the user answers correctly, exit and show: congratulations on completing the game.

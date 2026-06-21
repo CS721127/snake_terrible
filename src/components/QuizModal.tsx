@@ -5,12 +5,14 @@ interface QuizModalProps {
   readonly state: QuizViewState;
   readonly onAnswerChange: (answer: string) => void;
   readonly onSubmit: () => void;
+  readonly onSkip: () => void;
 }
 
 export function QuizModal({
   state,
   onAnswerChange,
   onSubmit,
+  onSkip,
 }: QuizModalProps): JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -34,6 +36,10 @@ export function QuizModal({
         <p className="quiz-modal__question" id="quiz-question">
           {state.question || "0 + 0 = ?"}
         </p>
+
+        {state.imageSrc ? (
+          <img alt="" className="quiz-modal__image" src={state.imageSrc} />
+        ) : null}
 
         <div
           aria-valuemax={100}
@@ -69,6 +75,15 @@ export function QuizModal({
             SUBMIT
           </button>
         </div>
+
+        <button
+          aria-label="Skip revival attempt"
+          className="quiz-modal__skip"
+          onClick={onSkip}
+          type="button"
+        >
+          SKIP / GIVE_UP
+        </button>
 
         <p
           className={

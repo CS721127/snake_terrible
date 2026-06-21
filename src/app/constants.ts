@@ -1,5 +1,6 @@
 import type { DifficultyLevel } from "@/engine/GameEngine";
 import type { GridConfig } from "@/engine/core/types";
+import { SKIN_ASSETS } from "@/engine/skins";
 
 export const CELL_SIZE_PX = 18;
 
@@ -24,12 +25,18 @@ export interface SkinOption {
   readonly id: string;
   readonly label: string;
   readonly previewSrc?: string;
+  readonly placeholder: {
+    readonly initials: string;
+    readonly headColor: string;
+    readonly bodyColor: string;
+  };
 }
 
-export const SKINS: readonly SkinOption[] = [
-  { id: "default", label: "DEFAULT" },
-  { id: "classic", label: "CLASSIC", previewSrc: "/assets/snake/classic/head.png" },
-  { id: "neon", label: "NEON", previewSrc: "/assets/snake/neon/head.png" },
-];
+export const SKINS: readonly SkinOption[] = SKIN_ASSETS.map((skin) => ({
+  id: skin.id,
+  label: skin.label,
+  previewSrc: skin.previewSrc,
+  placeholder: skin.placeholder,
+}));
 
 export const DEFAULT_ROOM_CODE = "ROOM-01";

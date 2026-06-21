@@ -5,15 +5,32 @@ import {
   DIFFICULTY_GRID,
 } from "@/app/constants";
 import { normalizeRoomCode } from "@/app/format";
-import type { HudState, QuizViewState, RoomFormState, ThemeMode } from "@/app/types";
+import type {
+  BonusChallengeViewState,
+  ExitTrollStage,
+  ExitTrollViewState,
+  HudState,
+  LengthChoiceViewState,
+  QuizViewState,
+  RoomFormState,
+  RunSummaryViewState,
+  ThemeMode,
+} from "@/app/types";
+import { BonusChallengeModal } from "@/components/BonusChallengeModal";
 import { DifficultyToolbar } from "@/components/DifficultyToolbar";
+import { ExitTrollOverlay } from "@/components/ExitTrollOverlay";
+import { FoodLegendPanel } from "@/components/FoodLegendPanel";
 import { GameStage } from "@/components/GameStage";
 import { Hud } from "@/components/Hud";
+import { LengthChoiceModal } from "@/components/LengthChoiceModal";
 import { QuizModal } from "@/components/QuizModal";
 import { RealtimePanel } from "@/components/RealtimePanel";
-import { SkinSelector } from "@/components/SkinSelector";
+import { RunSummaryModal } from "@/components/RunSummaryModal";
+import { SpeedControl } from "@/components/SpeedControl";
 import { GameEngine } from "@/engine/GameEngine";
-import type { DifficultyLevel } from "@/engine/GameEngine";
+import type { DifficultyLevel, RunStats } from "@/engine/GameEngine";
+import { generateLengthChoices } from "@/engine/bitwise/LengthChoices";
+import type { LengthChoice } from "@/engine/bitwise/LengthChoices";
 import { InputController } from "@/engine/core/InputController";
 import { QuizEngine } from "@/engine/revival/QuizEngine";
 import type { QuizQuestion } from "@/engine/revival/QuizEngine";
@@ -34,6 +51,11 @@ const INITIAL_HUD: HudState = {
   phase: "IDLE",
   revivalsRemaining: 3,
   revivalsTotal: 3,
+  timeRemainingMs: 180_000,
+  totalTimeMs: 180_000,
+  targetScore: 5,
+  patternDescription: "waiting",
+  gameResult: null,
 };
 
 const INITIAL_QUIZ: QuizViewState = {
@@ -44,6 +66,30 @@ const INITIAL_QUIZ: QuizViewState = {
   isUrgent: false,
   feedback: "",
   feedbackOk: false,
+};
+
+const INITIAL_LENGTH_CHOICES: LengthChoiceViewState = {
+  visible: false,
+  reason: "START",
+  choices: [],
+};
+
+const INITIAL_BONUS: BonusChallengeViewState = {
+  visible: false,
+  challenge: null,
+  answerText: "",
+  feedback: "",
+  feedbackOk: false,
+  resolved: false,
+};
+
+const INITIAL_RUN_SUMMARY: RunSummaryViewState = {
+  visible: false,
+  stats: null,
+};
+
+const INITIAL_EXIT_TROLL: ExitTrollViewState = {
+  stage: "none",
 };
 
 function createEmptySnapshot(
@@ -70,6 +116,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 
 export function App(): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const stageBoardRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<CanvasRenderer | null>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const latestSnapshotRef = useRef<RenderSnapshot | null>(null);
@@ -88,6 +135,8 @@ export function App(): JSX.Element {
     setSkinIdState(next);
   }, []);
 
+  const [tickIntervalMs, setTickIntervalMsState] = useState(150);
+
   const [theme, setTheme] = useState<ThemeMode>("dark");
   const [hud, setHudState] = useState<HudState>(INITIAL_HUD);
   const hudRef = useRef<HudState>(hud);
@@ -104,6 +153,11 @@ export function App(): JSX.Element {
   const currentQuizRef = useRef<QuizQuestion | null>(null);
   const quizIntervalRef = useRef<number | null>(null);
   const quizResolutionRef = useRef<number | null>(null);
+  const [lengthChoices, setLengthChoices] =
+    useState<LengthChoiceViewState>(INITIAL_LENGTH_CHOICES);
+  const [bonus, setBonus] = useState<BonusChallengeViewState>(INITIAL_BONUS);
+  const [runSummary, setRunSummary] = useState<RunSummaryViewState>(INITIAL_RUN_SUMMARY);
+  const [exitTroll, setExitTroll] = useState<ExitTrollViewState>(INITIAL_EXIT_TROLL);
 
   const [roomForm, setRoomForm] = useState<RoomFormState>({
     roomCode: DEFAULT_ROOM_CODE,
@@ -159,6 +213,7 @@ export function App(): JSX.Element {
     setQuiz({
       visible: true,
       question: question.question,
+      imageSrc: question.imageSrc,
       answerText: "",
       timerRatio: 1,
       isUrgent: false,
@@ -253,7 +308,6 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     skinIdRef.current = skinId;
-    engineRef.current?.setSkin(skinId);
   }, [skinId]);
 
   useEffect(() => {
@@ -348,11 +402,39 @@ export function App(): JSX.Element {
       onRevivalFailed: () => {
         // The engine has already moved into GAME_OVER and rendered the final frame.
       },
+      onLengthChoicesRequired: (request) => {
+        setLengthChoices({ ...request, visible: true });
+      },
+      onPatternChange: (goal) => {
+        setHudPatch({ patternDescription: goal.description });
+      },
+      onTimerChange: (timeRemainingMs, totalTimeMs) => {
+        setHudPatch({ timeRemainingMs, totalTimeMs });
+      },
+      onGameResultChange: (gameResult) => {
+        setHudPatch({ gameResult });
+      },
+      onBonusChallengeChange: (challenge, resolved) => {
+        setBonus({
+          visible: Boolean(challenge),
+          challenge,
+          answerText: "",
+          feedback: "",
+          feedbackOk: false,
+          resolved,
+        });
+      },
+      onSkinChange: setSkinId,
+      onSpeedChange: setTickIntervalMsState,
+      onRunStatsChange: (stats: RunStats) => {
+        setRunSummary({ visible: true, stats });
+      },
     });
 
     engineRef.current = engine;
     engine.attachInput();
     setHudPatch(INITIAL_HUD);
+    setTickIntervalMsState(engine.getTickIntervalMs());
     renderEmptyBoard();
 
     return () => {
@@ -367,6 +449,7 @@ export function App(): JSX.Element {
     renderEmptyBoard,
     roomForm.role,
     setHudPatch,
+    setSkinId,
     showQuiz,
   ]);
 
@@ -392,6 +475,10 @@ export function App(): JSX.Element {
     };
   }, [connectedRoom, publishInput, roomForm.role, sessionId, status]);
 
+  const handleSpeedChange = useCallback((nextTickIntervalMs: number) => {
+    engineRef.current?.setSpeed(nextTickIntervalMs);
+  }, []);
+
   const handleStart = useCallback(() => {
     if (roleRef.current === "client") {
       if (status !== "connected" || !connectedRoom) return;
@@ -405,11 +492,30 @@ export function App(): JSX.Element {
       return;
     }
 
-    engineRef.current?.start();
-    if (latestSnapshotRef.current) {
-      publishHostSnapshot(latestSnapshotRef.current, true);
-    }
-  }, [connectedRoom, publishCommand, publishHostSnapshot, sessionId, status]);
+    setLengthChoices({
+      visible: true,
+      reason: "START",
+      choices: generateLengthChoices(),
+    });
+  }, [connectedRoom, publishCommand, sessionId, status]);
+
+  const handleLengthChoice = useCallback(
+    (choice: LengthChoice) => {
+      const reason = lengthChoices.reason;
+      setLengthChoices(INITIAL_LENGTH_CHOICES);
+
+      if (reason === "START") {
+        engineRef.current?.start(choice.resultLength, choice.reversed);
+      } else {
+        engineRef.current?.applyLengthChoice(choice);
+      }
+
+      if (latestSnapshotRef.current) {
+        publishHostSnapshot(latestSnapshotRef.current, true);
+      }
+    },
+    [lengthChoices.reason, publishHostSnapshot],
+  );
 
   useEffect(() => {
     const handleSpace = (event: KeyboardEvent) => {
@@ -474,6 +580,53 @@ export function App(): JSX.Element {
     }
   }, [finishQuiz, quiz.answerText]);
 
+  const handleQuizSkip = useCallback(() => {
+    if (!currentQuizRef.current) return;
+    setQuiz((prev) => ({
+      ...prev,
+      feedback: "Skipped.",
+      feedbackOk: false,
+    }));
+    finishQuiz(false, 300);
+  }, [finishQuiz]);
+
+  const handleBonusAnswerChange = useCallback((answerText: string) => {
+    setBonus((prev) => ({
+      ...prev,
+      answerText,
+      feedback: "",
+    }));
+  }, []);
+
+  const handleBonusSubmit = useCallback(() => {
+    const result = engineRef.current?.submitBonusAnswer(bonus.answerText);
+    if (!result) return;
+
+    setBonus((prev) => ({
+      ...prev,
+      feedback: result.message,
+      feedbackOk: result.ok,
+      resolved: result.ok ? true : prev.resolved,
+    }));
+  }, [bonus.answerText]);
+
+  const handleBonusClose = useCallback(() => {
+    setBonus((prev) => ({ ...prev, visible: false }));
+  }, []);
+
+  /**
+   * Run summary "Exit" button: close summary and start exit troll stage 1 (placeholder video).
+   * Per todo.md: exit only, no "play again"; click runs the full troll chain.
+   */
+  const handleRunSummaryExit = useCallback(() => {
+    setRunSummary(INITIAL_RUN_SUMMARY);
+    setExitTroll({ stage: "video" });
+  }, []);
+
+  const handleExitTrollAdvance = useCallback((nextStage: ExitTrollStage) => {
+    setExitTroll({ stage: nextStage });
+  }, []);
+
   const handleConnect = useCallback(() => {
     const roomCode = normalizeRoomCode(roomForm.roomCode);
     setRoomForm((prev) => ({ ...prev, roomCode }));
@@ -495,52 +648,76 @@ export function App(): JSX.Element {
 
   return (
     <div className="app-shell">
-      <div className="app-shell__stack">
-        <Hud
-          hud={hud}
-          onToggleTheme={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
-          theme={theme}
-        />
+      <div className="app-shell__layout">
+        <div className="app-shell__stack">
+          <Hud
+            hud={hud}
+            onToggleTheme={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+            theme={theme}
+          />
 
-        <RealtimePanel
-          connectedRole={connectedRole}
-          connectedRoom={connectedRoom}
-          error={error}
-          form={roomForm}
-          isConfigured={isConfigured}
-          onConnect={handleConnect}
-          onDisconnect={() => void disconnect()}
-          onRoleChange={handleRoleChange}
-          onRoomCodeChange={handleRoomCodeChange}
-          status={status}
-        />
+          <RealtimePanel
+            connectedRole={connectedRole}
+            connectedRoom={connectedRoom}
+            error={error}
+            form={roomForm}
+            isConfigured={isConfigured}
+            onConnect={handleConnect}
+            onDisconnect={() => void disconnect()}
+            onRoleChange={handleRoleChange}
+            onRoomCodeChange={handleRoomCodeChange}
+            status={status}
+          />
 
-        <DifficultyToolbar
-          difficulty={difficulty}
-          onDifficultyChange={setDifficulty}
-          readOnly={readOnlyByHost}
-        />
+          <DifficultyToolbar
+            difficulty={difficulty}
+            onDifficultyChange={setDifficulty}
+            readOnly={readOnlyByHost}
+          />
 
-        <SkinSelector
-          onSkinChange={setSkinId}
-          readOnly={readOnlyByHost}
-          skinId={skinId}
-        />
+          <SpeedControl
+            maxMs={engineRef.current?.getSpeedRange().maxMs ?? 320}
+            minMs={engineRef.current?.getSpeedRange().minMs ?? 60}
+            onSpeedChange={handleSpeedChange}
+            readOnly={readOnlyByHost || roomForm.role === "client"}
+            tickIntervalMs={tickIntervalMs}
+          />
 
-        <GameStage
-          canvasRef={canvasRef}
-          difficulty={difficulty}
-          onStart={handleStart}
-          phase={hud.phase}
-          role={roomForm.role}
-        />
+          <GameStage
+            canvasRef={canvasRef}
+            difficulty={difficulty}
+            onStart={handleStart}
+            phase={hud.phase}
+            role={roomForm.role}
+            stageBoardRef={stageBoardRef}
+          />
+        </div>
+
+        <FoodLegendPanel />
       </div>
 
       <QuizModal
         onAnswerChange={handleQuizAnswerChange}
+        onSkip={handleQuizSkip}
         onSubmit={handleQuizSubmit}
         state={quiz}
       />
+
+      <LengthChoiceModal
+        onChoose={handleLengthChoice}
+        state={lengthChoices}
+      />
+
+      <BonusChallengeModal
+        onAnswerChange={handleBonusAnswerChange}
+        onClose={handleBonusClose}
+        onSubmit={handleBonusSubmit}
+        state={bonus}
+      />
+
+      <RunSummaryModal onExit={handleRunSummaryExit} state={runSummary} />
+
+      <ExitTrollOverlay onAdvance={handleExitTrollAdvance} state={exitTroll} />
     </div>
   );
 }

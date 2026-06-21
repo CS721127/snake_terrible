@@ -1,32 +1,32 @@
 import type { Cell, Direction } from "./types";
-import { cellsEqual, isOppositeDirection, step } from "./types";
+import { DIRECTION_VECTORS, cellsEqual, isOppositeDirection, step } from "./types";
 
 export interface SnakeInitOptions {
-  /** 蛇的初始头部位置。 */
+  /** Snake's initial head position. */
   readonly start: Cell;
-  /** 初始朝向。 */
+  /** Initial facing direction. */
   readonly direction: Direction;
-  /** 初始长度（含头部），Sprint 1 默认 3 节，方便玩家一开始就能看清身体方向。 */
+  /** Initial length (including head); Sprint 1 default 3 segments so the player can see body direction immediately. */
   readonly initialLength?: number;
 }
 
 /**
- * Snake：管理蛇身坐标与移动逻辑的核心类。
+ * Snake: core class managing snake body coordinates and movement logic.
  *
- * 数据结构选择：body 是一个 Cell 数组，body[0] 始终是头部，body[length-1] 是尾部。
- * 选择数组而不是链表，是因为：
- * - Sprint 1 体量下蛇身长度有限（最多几十到几百格），数组的 unshift/pop 开销可忽略；
- * - 后续渲染、网络同步（StateDiffer）都需要"整条蛇"的有序快照，数组天然满足。
+ * Data structure choice: body is a Cell array; body[0] is always the head, body[length-1] is the tail.
+ * Array over linked list because:
+ * - At Sprint 1 scale, snake length is limited (dozens to hundreds of cells); array unshift/pop cost is negligible;
+ * - Rendering and network sync (StateDiffer) need an ordered snapshot of the whole snake; arrays fit naturally.
  *
- * 关键设计：move() 不在内部做"撞墙/撞自己"判断——那是 CollisionDetector 的职责。
- * Snake 只管"如果合法地往前走一步，状态会变成什么样"，保持单一职责。
+ * Key design: move() does not check wall/self collision — that is CollisionDetector's job.
+ * Snake only answers "if we take one legal step forward, what does state look like?" (single responsibility).
  */
 export class Snake {
   private bodyCells: Cell[];
   private currentDirection: Direction;
-  /** 下一帧待应用的方向（输入先缓存到这里，tick 时才真正生效，避免一帧内多次转向导致瞬间掉头）。 */
+  /** Direction to apply on the next frame (input is buffered here and applied on tick to avoid instant U-turns within one frame). */
   private pendingDirection: Direction;
-  /** 待增加的身体节数（吃到食物后 +1，在下一次 move 时"少删一节尾巴"来实现变长）。 */
+  /** Pending body segments to add (after eating food +1; next move skips tail pop to grow). */
   private pendingGrowth: number;
 
   constructor(options: SnakeInitOptions) {
@@ -35,7 +35,7 @@ export class Snake {
     this.pendingDirection = direction;
     this.pendingGrowth = 0;
 
-    // 以 start 为头部，沿 direction 的反方向铺出初始身体。
+    // Use start as head; lay out initial body backward along the opposite of direction.
     const body: Cell[] = [start];
     let cursor = start;
     const backward = Snake.opposite(direction);
@@ -46,13 +46,13 @@ export class Snake {
     this.bodyCells = body;
   }
 
-  /** 蛇身坐标的只读快照，顺序为 [头, ..., 尾]。 */
+  /** Read-only snapshot of body coordinates, ordered [head, ..., tail]. */
   get body(): readonly Cell[] {
     return this.bodyCells;
   }
 
   get head(): Cell {
-    // body 始终保证至少有 1 节（构造时与 move 时都维持此不变量）。
+    // body always has at least 1 segment (invariant maintained in constructor and move).
     return this.bodyCells[0] as Cell;
   }
 
@@ -69,12 +69,12 @@ export class Snake {
   }
 
   /**
-   * 请求转向。不会立刻改变 currentDirection，而是缓存到 pendingDirection，
-   * 真正生效要等到下一次 move()。
+   * Request a turn. Does not change currentDirection immediately; caches to pendingDirection
+   * until the next move().
    *
-   * 规则：
-   * - 忽略与当前方向相反的转向请求（防止蛇直接反向"咬"自己的颈部）；
-   * - 同一 tick 内多次调用，只保留最后一次合法的请求（覆盖式写入）。
+   * Rules:
+   * - Ignore turns opposite to current direction (prevents the snake from reversing into its neck);
+   * - Multiple calls in one tick keep only the last valid request (overwrite).
    */
   requestDirection(direction: Direction): void {
     if (isOppositeDirection(direction, this.currentDirection)) {
@@ -83,21 +83,43 @@ export class Snake {
     this.pendingDirection = direction;
   }
 
-  /** 标记蛇在下一次 move 时应该变长（不立即改变 body，由 move 统一处理）。 */
+  /** Mark the snake to grow on the next move (does not change body immediately; move handles it). */
   grow(amount: number = 1): void {
     this.pendingGrowth += amount;
   }
 
+  resizeToLength(targetLength: number): void {
+    const safeLength = Math.max(1, Math.floor(targetLength));
+
+    if (safeLength < this.bodyCells.length) {
+      this.bodyCells.length = safeLength;
+      this.pendingGrowth = 0;
+      return;
+    }
+
+    while (this.bodyCells.length < safeLength) {
+      this.bodyCells.push(this.nextTailCell());
+    }
+
+    this.pendingGrowth = 0;
+  }
+
+  reverseFromTail(): void {
+    this.bodyCells.reverse();
+    this.currentDirection = Snake.opposite(this.currentDirection);
+    this.pendingDirection = this.currentDirection;
+  }
+
   /**
-   * 推进一帧：朝 pendingDirection 移动一格。
-   * 返回移动后的新头部坐标，供 CollisionDetector 在 move 之后立即检测碰撞。
+   * Advance one frame: move one cell in pendingDirection.
+   * Returns the new head coordinate after the move, for CollisionDetector to check immediately after move().
    *
-   * 变长/缩短的实现方式：
-   * - 默认每走一步，头部前插一格、尾部弹出一格（长度不变，"平移"的视觉效果）；
-   * - 若 pendingGrowth > 0，则跳过弹出尾部（长度 +1），每次消耗 1 点 pendingGrowth；
-   * - pendingGrowth 允许为负数预留（Sprint 2 补码运算可能产生"变短"的食物效果），
-   *   若为负且 |pendingGrowth| 达到一定量，则额外弹出尾部格子（但保证长度下限为 1，
-   *   避免蛇被吃到 0 节甚至负数节这种无意义状态）。
+   * Grow/shrink behavior:
+   * - By default each step unshifts head and pops tail (length unchanged, "sliding" look);
+   * - If pendingGrowth > 0, skip tail pop (length +1), consuming 1 pendingGrowth each time;
+   * - pendingGrowth may be negative (Sprint 2 complement food may shrink the snake);
+   *   if negative and |pendingGrowth| accumulates, extra tail pops occur (minimum length 1,
+   *   avoiding meaningless 0 or negative segment counts).
    */
   move(): Cell {
     this.currentDirection = this.pendingDirection;
@@ -106,10 +128,10 @@ export class Snake {
 
     if (this.pendingGrowth > 0) {
       this.pendingGrowth -= 1;
-      // 变长：不弹出尾部，body 自然多了一格。
+      // Grow: do not pop tail; body naturally gains one cell.
     } else if (this.pendingGrowth < 0) {
       this.pendingGrowth += 1;
-      // 变短：额外多弹出一次尾部（但至少保留 1 节，下面统一兜底）。
+      // Shrink: pop tail an extra time (but keep at least 1 segment; see shrinkTailIfPossible below).
       this.bodyCells.pop();
       this.shrinkTailIfPossible();
     } else {
@@ -119,14 +141,32 @@ export class Snake {
     return newHead;
   }
 
-  /** 弹出尾部一格，但保证蛇身至少保留 1 节，避免出现空蛇。 */
+  /** Pop one tail cell but keep at least 1 body segment to avoid an empty snake. */
   private shrinkTailIfPossible(): void {
     if (this.bodyCells.length > 1) {
       this.bodyCells.pop();
     }
   }
 
-  /** 判断给定格子是否与蛇身（不含头部，或按需含头部）发生重叠，供 CollisionDetector 调用。 */
+  private nextTailCell(): Cell {
+    const tail = this.tail;
+    const beforeTail = this.bodyCells[this.bodyCells.length - 2];
+
+    if (beforeTail) {
+      return {
+        x: tail.x + (tail.x - beforeTail.x),
+        y: tail.y + (tail.y - beforeTail.y),
+      };
+    }
+
+    const vector = DIRECTION_VECTORS[Snake.opposite(this.currentDirection)];
+    return {
+      x: tail.x + vector.x,
+      y: tail.y + vector.y,
+    };
+  }
+
+  /** Whether the given cell overlaps the snake body (optionally excluding head); used by CollisionDetector. */
   occupies(cell: Cell, options: { includeHead?: boolean } = {}): boolean {
     const { includeHead = true } = options;
     const cells = includeHead ? this.bodyCells : this.bodyCells.slice(1);

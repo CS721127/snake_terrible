@@ -1,12 +1,12 @@
 /**
- * RevivalManager：管理玩家的复活次数与答题流程。
+ * RevivalManager: manages player revival counts and quiz flow.
  *
- * 规则：
- * - 每局开始时有 FREE_REVIVALS 次（默认 3）免费复活机会。
- * - 免费复活：直接触发 onFreeRevive 回调，蛇保持当前长度继续游戏。
- * - 免费次数耗尽：触发 onQuizRequired，等待上层展示答题弹窗。
- *   - 答对：触发 onReviveGranted（同免费复活效果）。
- *   - 答错/超时：触发 onRevivalFailed → 真正 GAME_OVER。
+ * Rules:
+ * - Each game starts with FREE_REVIVALS (default 3) free revival chances.
+ * - Free revival: triggers onFreeRevive callback directly; snake continues at current length.
+ * - After free revivals are exhausted: triggers onQuizRequired and waits for the quiz UI.
+ *   - Correct answer: triggers onReviveGranted (same effect as free revival).
+ *   - Wrong answer / timeout: triggers onRevivalFailed → true GAME_OVER.
  */
 
 export interface RevivalManagerOptions {
@@ -35,7 +35,7 @@ export class RevivalManager {
     this.onRevivalFailed = options.onRevivalFailed;
   }
 
-  /** 重置复活次数（每局开始时调用）。 */
+  /** Reset revival count (called at the start of each game). */
   reset(): void {
     this.freeRevivalsLeft = this.freeRevivalsPerGame;
   }
@@ -49,9 +49,9 @@ export class RevivalManager {
   }
 
   /**
-   * 玩家触发碰撞后调用。
-   * - 有免费次数 → 直接复活，消耗 1 次，调用 onFreeRevive。
-   * - 无免费次数 → 调用 onQuizRequired，等待外部答题结果。
+   * Called when the player triggers a collision.
+   * - If free revivals remain → revive directly, consume 1, call onFreeRevive.
+   * - If none remain → call onQuizRequired and wait for external quiz result.
    */
   tryRevive(): void {
     if (this.freeRevivalsLeft > 0) {
@@ -63,14 +63,14 @@ export class RevivalManager {
   }
 
   /**
-   * 外部答题结果回调：答对时调用。
+   * External quiz result callback: call when the answer is correct.
    */
   grantRevival(): void {
     this.onReviveGranted();
   }
 
   /**
-   * 外部答题结果回调：答错或超时时调用。
+   * External quiz result callback: call on wrong answer or timeout.
    */
   failRevival(): void {
     this.onRevivalFailed();

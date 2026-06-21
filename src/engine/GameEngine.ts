@@ -9,10 +9,49 @@ import type { Direction, GridConfig } from "./core/types";
 import type { RenderSnapshot } from "../rendering/Renderer";
 import { FoodPool } from "./FoodPool";
 import { RevivalManager } from "./revival/RevivalManager";
+import { applyBitwiseOperation } from "./bitwise/BitwiseMath";
+import { generateLengthChoices } from "./bitwise/LengthChoices";
+import type {
+  LengthChoice,
+  LengthChoiceReason,
+} from "./bitwise/LengthChoices";
+import {
+  generateLengthPatternGoal,
+  matchesLengthPattern,
+} from "./bitwise/LengthPattern";
+import type { LengthPatternGoal } from "./bitwise/LengthPattern";
+import {
+  checkPostGameChallenge,
+  generatePostGameChallenge,
+} from "./bitwise/PostGameChallenge";
+import type {
+  ChallengeCheckResult,
+  PostGameChallenge,
+} from "./bitwise/PostGameChallenge";
+import { AUTO_SKIN_IDS } from "./skins";
 
 export type DifficultyLevel = "EASY" | "MEDIUM" | "HARD";
+export type GameResult = "WIN" | "LOSE";
 
-/** 各难度对应的游戏参数。 */
+export interface LengthChoiceRequest {
+  readonly reason: LengthChoiceReason;
+  readonly choices: readonly LengthChoice[];
+}
+
+/** Per-run summary stats (per todo.md): elapsed time and arrow key presses. */
+export interface RunStats {
+  readonly elapsedMs: number;
+  readonly arrowKeyPresses: number;
+}
+
+const GAME_DURATION_MS = 180_000;
+const TARGET_SCORE = 5;
+const MAX_RENDERED_SNAKE_SEGMENTS = 128;
+
+/** Tick interval range adjustable in-game (per todo.md runtime speed). Lower value = faster snake. */
+const MIN_TICK_INTERVAL_MS = 60;
+const MAX_TICK_INTERVAL_MS = 320;
+
 const DIFFICULTY_PRESETS: Record<
   DifficultyLevel,
   { grid: GridConfig; tickIntervalMs: number }
@@ -24,9 +63,7 @@ const DIFFICULTY_PRESETS: Record<
 
 export interface GameEngineOptions {
   difficulty?: DifficultyLevel;
-  /** 若指定则覆盖 difficulty 给出的网格（供测试或自定义模式使用）。 */
   grid?: GridConfig;
-  /** 若指定则覆盖 difficulty 给出的 tick 速度。 */
   tickIntervalMs?: number;
   cellSizePx: number;
   inputTarget: HTMLElement | Window;
@@ -38,17 +75,17 @@ export interface GameEngineOptions {
   onRevivalsChange?: (remaining: number, total: number) => void;
   onQuizRequired?: () => void;
   onRevivalFailed?: () => void;
+  onLengthChoicesRequired?: (request: LengthChoiceRequest) => void;
+  onPatternChange?: (goal: LengthPatternGoal) => void;
+  onTimerChange?: (remainingMs: number, totalMs: number) => void;
+  onGameResultChange?: (result: GameResult | null) => void;
+  onBonusChallengeChange?: (challenge: PostGameChallenge | null, resolved: boolean) => void;
+  onSkinChange?: (skinId: string) => void;
+  onSpeedChange?: (tickIntervalMs: number) => void;
+  /** Per todo.md: after game over (including revival failure), report elapsed time and arrow key count. */
+  onRunStatsChange?: (stats: RunStats) => void;
 }
 
-/**
- * GameEngine：顶层门面（Facade），组合所有子系统并对外提供简单接口。
- *
- * Sprint 1.5 新增：
- * - DifficultyLevel 驱动网格大小与 tick 速度
- * - FoodPool 维持 7 个食物同时存在
- * - RevivalManager 实现 3 次免费复活 + 答题复活
- * - onLengthChange 回调供 HUD 显示蛇长
- */
 export class GameEngine {
   readonly grid: Grid;
   readonly state: GameState;
@@ -60,13 +97,36 @@ export class GameEngine {
   private readonly revival: RevivalManager;
 
   private readonly cellSizePx: number;
+  private tickIntervalMs: number;
   private skinId: string;
   private score = 0;
+  private logicalLength = 3;
+  private timeRemainingMs = GAME_DURATION_MS;
+  private gameResult: GameResult | null = null;
+  private patternGoal: LengthPatternGoal = generateLengthPatternGoal(3);
+  private bonusChallenge: PostGameChallenge | null = null;
+  private bonusResolved = false;
+  private waitingForLengthChoice = false;
+
+  /** Per todo.md timing and key stats: reset/record start on start(), settle on finishGame(). */
+  private runStartedAtMs: number | null = null;
+  private arrowKeyPresses = 0;
 
   private readonly onRenderSnapshot: (snapshot: RenderSnapshot) => void;
   private readonly onScoreChange?: (score: number) => void;
   private readonly onLengthChange?: (length: number) => void;
   private readonly onRevivalsChange?: (remaining: number, total: number) => void;
+  private readonly onLengthChoicesRequired?: (request: LengthChoiceRequest) => void;
+  private readonly onPatternChange?: (goal: LengthPatternGoal) => void;
+  private readonly onTimerChange?: (remainingMs: number, totalMs: number) => void;
+  private readonly onGameResultChange?: (result: GameResult | null) => void;
+  private readonly onBonusChallengeChange?: (
+    challenge: PostGameChallenge | null,
+    resolved: boolean,
+  ) => void;
+  private readonly onSkinChange?: (skinId: string) => void;
+  private readonly onSpeedChange?: (tickIntervalMs: number) => void;
+  private readonly onRunStatsChange?: (stats: RunStats) => void;
 
   constructor(options: GameEngineOptions) {
     const difficulty = options.difficulty ?? "MEDIUM";
@@ -78,29 +138,38 @@ export class GameEngine {
     this.grid = new Grid(gridConfig);
     this.state = new GameState();
     this.cellSizePx = options.cellSizePx;
+    this.tickIntervalMs = tickIntervalMs;
     this.skinId = options.skinId ?? "default";
     this.onRenderSnapshot = options.onRenderSnapshot;
     this.onScoreChange = options.onScoreChange;
     this.onLengthChange = options.onLengthChange;
     this.onRevivalsChange = options.onRevivalsChange;
+    this.onLengthChoicesRequired = options.onLengthChoicesRequired;
+    this.onPatternChange = options.onPatternChange;
+    this.onTimerChange = options.onTimerChange;
+    this.onGameResultChange = options.onGameResultChange;
+    this.onBonusChallengeChange = options.onBonusChallengeChange;
+    this.onSkinChange = options.onSkinChange;
+    this.onSpeedChange = options.onSpeedChange;
+    this.onRunStatsChange = options.onRunStatsChange;
 
-    this.snake = this.createInitialSnake();
     this.collisionDetector = new CollisionDetector(this.grid);
     this.foodPool = new FoodPool(this.grid);
+    this.snake = this.createInitialSnake(this.logicalLength);
 
     this.revival = new RevivalManager({
       onFreeRevive: () => this.doRevive(),
       onQuizRequired: () => {
-        // 暂停游戏，等待外部答题弹窗
         this.tickLoop.stop();
         this.state.startReviving();
         options.onQuizRequired?.();
       },
       onReviveGranted: () => this.doRevive(),
       onRevivalFailed: () => {
-        this.state.resumeAfterRevival(); // REVIVING → PLAYING (临时)
-        this.state.end();                // PLAYING → GAME_OVER
-        this.renderFrame();
+        if (this.state.is("REVIVING")) {
+          this.state.resumeAfterRevival();
+        }
+        this.finishGame();
         options.onRevivalFailed?.();
       },
     });
@@ -119,23 +188,39 @@ export class GameEngine {
     }
   }
 
-  /** 初始化输入监听（与构造分离，方便测试时跳过真实 DOM 绑定）。 */
   attachInput(): void {
     this.input.attach();
   }
 
-  /** 开始/重新开始一局游戏。 */
-  start(): void {
+  start(initialLength = 3, reverseFromTail = false): void {
     if (this.state.is("PLAYING")) return;
 
     if (this.state.is("GAME_OVER") || this.state.is("REVIVING")) {
       this.state.transition("IDLE");
     }
 
-    this.snake = this.createInitialSnake();
     this.score = 0;
+    this.logicalLength = Math.max(1, Math.floor(initialLength));
+    this.timeRemainingMs = GAME_DURATION_MS;
+    this.gameResult = null;
+    this.bonusChallenge = null;
+    this.bonusResolved = false;
+    this.waitingForLengthChoice = false;
+    this.runStartedAtMs = Date.now();
+    this.arrowKeyPresses = 0;
+    this.patternGoal = generateLengthPatternGoal(this.logicalLength);
+    this.snake = this.createInitialSnake(this.logicalLength);
+    if (reverseFromTail) {
+      this.snake.reverseFromTail();
+    }
+    this.randomizeSkin();
+
     this.onScoreChange?.(this.score);
-    this.onLengthChange?.(this.snake.length);
+    this.onLengthChange?.(this.logicalLength);
+    this.onTimerChange?.(this.timeRemainingMs, GAME_DURATION_MS);
+    this.onPatternChange?.(this.patternGoal);
+    this.onGameResultChange?.(this.gameResult);
+    this.onBonusChallengeChange?.(this.bonusChallenge, this.bonusResolved);
 
     this.revival.reset();
     this.onRevivalsChange?.(this.revival.remaining, this.revival.total);
@@ -148,7 +233,6 @@ export class GameEngine {
     this.renderFrame();
   }
 
-  /** 彻底释放资源（移除事件监听、停止循环），供页面卸载时调用。 */
   dispose(): void {
     this.tickLoop.stop();
     this.input.detach();
@@ -159,55 +243,124 @@ export class GameEngine {
   }
 
   getSnakeLength(): number {
-    return this.snake.length;
+    return this.logicalLength;
   }
 
-  /** 外部答题结果：答对，授予复活。 */
+  getRemainingTimeMs(): number {
+    return this.timeRemainingMs;
+  }
+
+  getTargetScore(): number {
+    return TARGET_SCORE;
+  }
+
+  getTickIntervalMs(): number {
+    return this.tickIntervalMs;
+  }
+
+  getSpeedRange(): { minMs: number; maxMs: number } {
+    return { minMs: MIN_TICK_INTERVAL_MS, maxMs: MAX_TICK_INTERVAL_MS };
+  }
+
+  /**
+   * Adjust snake speed during play (per todo.md).
+   * Lower tick interval = faster snake; clamped to [MIN_TICK_INTERVAL_MS, MAX_TICK_INTERVAL_MS]
+   * to avoid unplayable extremes (too fast to react / too slow to feel tense).
+   */
+  setSpeed(tickIntervalMs: number): void {
+    const clamped = Math.min(
+      MAX_TICK_INTERVAL_MS,
+      Math.max(MIN_TICK_INTERVAL_MS, Math.round(tickIntervalMs)),
+    );
+    this.tickIntervalMs = clamped;
+    this.tickLoop.setTickIntervalMs(clamped);
+    this.onSpeedChange?.(clamped);
+  }
+
   submitQuizSuccess(): void {
     if (!this.state.is("REVIVING")) return;
     this.revival.grantRevival();
   }
 
-  /** 外部答题结果：答错或超时，游戏结束。 */
   submitQuizFailure(): void {
     if (!this.state.is("REVIVING")) return;
     this.revival.failRevival();
   }
 
-  /** 更新皮肤 ID（下一帧生效）。 */
-  setSkin(skinId: string): void {
-    this.skinId = skinId;
+  submitBonusAnswer(answer: string): ChallengeCheckResult {
+    if (!this.bonusChallenge || this.bonusResolved) {
+      return { ok: false, message: "No active bonus challenge." };
+    }
+
+    const result = checkPostGameChallenge(answer, this.bonusChallenge);
+    if (result.ok) {
+      this.bonusResolved = true;
+      this.score += 1;
+      this.gameResult = this.score >= TARGET_SCORE ? "WIN" : this.gameResult;
+      this.onScoreChange?.(this.score);
+      this.onGameResultChange?.(this.gameResult);
+      this.onBonusChallengeChange?.(this.bonusChallenge, this.bonusResolved);
+    }
+
+    return result;
   }
 
-  /** Queues a direction input from any controller, including remote clients. */
+  /** Skins are not manually customizable (per todo.md); internal use on start / pattern switch only. */
+  private randomizeSkin(): void {
+    const index = Math.floor(Math.random() * AUTO_SKIN_IDS.length);
+    const nextSkinId = AUTO_SKIN_IDS[index] ?? "default";
+    this.skinId = nextSkinId;
+    this.onSkinChange?.(nextSkinId);
+  }
+
   queueDirection(direction: Direction): void {
-    if (!this.state.is("PLAYING")) return;
+    if (!this.state.is("PLAYING") || this.waitingForLengthChoice) return;
     this.snake.requestDirection(direction);
   }
 
-  private createInitialSnake(): Snake {
+  applyLengthChoice(choice: LengthChoice): void {
+    if (!this.state.is("PLAYING") || !this.waitingForLengthChoice) return;
+
+    this.waitingForLengthChoice = false;
+    this.applyLogicalLength(choice.resultLength, choice.reversed);
+    this.patternGoal = generateLengthPatternGoal(this.logicalLength);
+    this.onPatternChange?.(this.patternGoal);
+    this.randomizeSkin();
+    this.tickLoop.start();
+    this.renderFrame();
+  }
+
+  private createInitialSnake(logicalLength: number): Snake {
     const startX = Math.floor(this.grid.columns / 2);
     const startY = Math.floor(this.grid.rows / 2);
     return new Snake({
       start: { x: startX, y: startY },
       direction: "RIGHT",
-      initialLength: 3,
+      initialLength: this.toRenderedSnakeLength(logicalLength),
     });
   }
 
   private handleDirectionInput(direction: Direction): void {
+    if (this.state.is("PLAYING") && !this.waitingForLengthChoice) {
+      this.arrowKeyPresses += 1;
+    }
     this.queueDirection(direction);
   }
 
-  /** 逻辑帧：由 TickLoop 以固定间隔调用，不受渲染帧率影响。 */
   private tick(): void {
-    if (!this.state.is("PLAYING")) return;
+    if (!this.state.is("PLAYING") || this.waitingForLengthChoice) return;
+
+    this.timeRemainingMs = Math.max(0, this.timeRemainingMs - this.tickIntervalMs);
+    this.onTimerChange?.(this.timeRemainingMs, GAME_DURATION_MS);
+    if (this.timeRemainingMs <= 0) {
+      this.finishGame();
+      return;
+    }
 
     this.snake.move();
 
     const collision = this.collisionDetector.checkSelfCollision(this.snake);
     if (this.collisionDetector.isFatal(collision)) {
-      // 不直接 GAME_OVER，而是先问 RevivalManager
       this.tickLoop.stop();
       this.revival.tryRevive();
       this.onRevivalsChange?.(this.revival.remaining, this.revival.total);
@@ -216,45 +369,115 @@ export class GameEngine {
     }
 
     const occupied = new Set(this.snake.body.map((c) => Grid.cellKey(c)));
-    const growth = this.foodPool.tryEat(this.snake.head, occupied);
-    if (growth > 0) {
-      this.snake.grow(growth);
-      this.score += 1;
-      this.onScoreChange?.(this.score);
-      this.onLengthChange?.(this.snake.length);
+    const food = this.foodPool.tryEat(this.snake.head, occupied);
+    if (!food) return;
+
+    const nextLength = applyBitwiseOperation(
+      this.logicalLength,
+      food.operation,
+      food.value,
+    );
+    this.applyLogicalLength(nextLength.length, nextLength.reversed);
+    this.checkPatternScore();
+  }
+
+  private checkPatternScore(): void {
+    if (!matchesLengthPattern(this.logicalLength, this.patternGoal)) return;
+
+    this.score += 1;
+    this.onScoreChange?.(this.score);
+
+    if (this.score >= TARGET_SCORE) {
+      this.finishGame();
+      return;
+    }
+
+    this.requestLengthChoice("PATTERN_MATCH");
+  }
+
+  private requestLengthChoice(reason: LengthChoiceReason): void {
+    this.waitingForLengthChoice = true;
+    this.tickLoop.stop();
+    const choices = generateLengthChoices();
+
+    if (this.onLengthChoicesRequired) {
+      this.onLengthChoicesRequired({ reason, choices });
+      return;
+    }
+
+    const fallback = choices[0];
+    if (fallback) {
+      this.applyLengthChoice(fallback);
     }
   }
 
-  /** 复活：把蛇重置到出生位置，恢复游戏循环。 */
-  private doRevive(): void {
-    // 保留蛇的长度，但重置位置到中心，避免蛇头还在墙里
-    const len = this.snake.length;
-    this.snake = new Snake({
-      start: {
-        x: Math.floor(this.grid.columns / 2),
-        y: Math.floor(this.grid.rows / 2),
-      },
-      direction: "RIGHT",
-      initialLength: len,
+  private applyLogicalLength(length: number, reverseFromTail: boolean): void {
+    this.logicalLength = Math.max(1, Math.floor(length));
+    this.snake.resizeToLength(this.toRenderedSnakeLength(this.logicalLength));
+    if (reverseFromTail) {
+      this.snake.reverseFromTail();
+    }
+
+    this.onLengthChange?.(this.logicalLength);
+  }
+
+  private finishGame(): void {
+    this.tickLoop.stop();
+    this.waitingForLengthChoice = false;
+
+    if (this.state.is("REVIVING")) {
+      this.state.resumeAfterRevival();
+    }
+
+    if (!this.state.is("PLAYING")) return;
+
+    this.gameResult = this.score >= TARGET_SCORE ? "WIN" : "LOSE";
+    this.state.end();
+    this.bonusChallenge = generatePostGameChallenge(this.logicalLength);
+    this.bonusResolved = false;
+    this.onGameResultChange?.(this.gameResult);
+    this.onBonusChallengeChange?.(this.bonusChallenge, this.bonusResolved);
+
+    const elapsedMs = this.runStartedAtMs !== null ? Date.now() - this.runStartedAtMs : 0;
+    this.onRunStatsChange?.({
+      elapsedMs: Math.max(0, elapsedMs),
+      arrowKeyPresses: this.arrowKeyPresses,
     });
 
-    // 重新初始化食物，避免与复活后的蛇身重叠
+    this.renderFrame();
+  }
+
+  private doRevive(): void {
+    this.snake = this.createInitialSnake(this.logicalLength);
+
     const occupied = new Set(this.snake.body.map((c) => Grid.cellKey(c)));
     this.foodPool.init(occupied);
 
     if (this.state.is("REVIVING")) {
       this.state.resumeAfterRevival();
-    } else {
-      // 免费复活路径：此时仍在 PLAYING
     }
 
     this.onRevivalsChange?.(this.revival.remaining, this.revival.total);
-    this.onLengthChange?.(this.snake.length);
+    this.onLengthChange?.(this.logicalLength);
     this.tickLoop.start();
     this.renderFrame();
   }
 
-  /** 渲染帧：每个 rAF 都调用，把当前逻辑状态打包成快照交给渲染器。 */
+  /**
+   * Rendered (visible on grid) length = logical length / 4 (per todo.md).
+   * E.g. logical length 128 → 32 visible segments on the grid.
+   * With 8-bit logical max 255, rendered max ≈ 64 segments —
+   * still reasonable on typical 20~36 cell grids.
+   */
+  private toRenderedSnakeLength(logicalLength: number): number {
+    const boardCap = Math.max(1, this.grid.totalCells - this.foodPool.size - 1);
+    const scaledLength = Math.floor(logicalLength / 4);
+    return Math.max(
+      1,
+      Math.min(scaledLength, boardCap, MAX_RENDERED_SNAKE_SEGMENTS),
+    );
+  }
+
   private renderFrame(): void {
     this.onRenderSnapshot({
       grid: this.grid.config,

@@ -2,11 +2,11 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { GameEngine } from "../GameEngine";
 
 /**
- * GameEngine 集成测试：验证顶层门面正确串联了
- * Grid / Snake / SimpleFood / CollisionDetector / GameState / TickLoop。
+ * GameEngine integration tests: verify the top-level facade wires
+ * Grid / Snake / SimpleFood / CollisionDetector / GameState / TickLoop correctly.
  *
- * 同样手动 mock requestAnimationFrame，让测试可以精确控制每一次 tick 的触发时机，
- * 不依赖真实时间流逝或 vitest fake-timer 对 rAF 支持程度的不确定性。
+ * Manually mocks requestAnimationFrame so tests control each tick precisely,
+ * without relying on real time or vitest fake-timer rAF behavior.
  */
 describe("GameEngine", () => {
   let pendingCallback: ((timestamp: number) => void) | null = null;
@@ -20,7 +20,7 @@ describe("GameEngine", () => {
     vi.stubGlobal("cancelAnimationFrame", () => {
       pendingCallback = null;
     });
-    // Math.random 固定为 0，使 randomEmptyCell 的选择具有确定性，方便断言食物位置。
+    // Fix Math.random to 0 so randomEmptyCell is deterministic for assertions.
     vi.spyOn(Math, "random").mockReturnValue(0);
   });
 
@@ -31,7 +31,7 @@ describe("GameEngine", () => {
 
   function fireFrame(timestamp: number): void {
     const cb = pendingCallback;
-    if (!cb) throw new Error("没有等待中的 rAF 回调");
+    if (!cb) throw new Error("No pending rAF callback");
     pendingCallback = null;
     cb(timestamp);
   }
@@ -83,7 +83,7 @@ describe("GameEngine", () => {
     throw new Error("Expected the snake to collide with the right wall.");
   }
 
-  it("初始状态为 IDLE，调用 start() 后进入 PLAYING", () => {
+  it("starts in IDLE and enters PLAYING after start()", () => {
     const { engine, phases } = createEngine();
     expect(engine.state.is("IDLE")).toBe(true);
     engine.start();
@@ -91,21 +91,21 @@ describe("GameEngine", () => {
     expect(phases).toContain("PLAYING");
   });
 
-  it("PLAYING 状态下，每个 tick 蛇前进一格", () => {
+  it("advances the snake one cell per tick while PLAYING", () => {
     const { engine } = createEngine();
     engine.start();
     fireFrame(0);
 
-    // 蛇初始头部在网格中心 (5,5)，方向 RIGHT
+    // Initial head at grid center (5,5), direction RIGHT
     fireFrame(150);
-    // 触发一次 tick 后，再渲染一帧来获取最新快照
+    // After one tick, render another frame for latest snapshot
     fireFrame(150 + 16);
 
-    // 无法直接读取私有 snake，但可以通过 getScore 等公开状态间接验证引擎仍在运行
+    // Cannot read private snake; verify engine still running via public state
     expect(engine.state.is("PLAYING")).toBe(true);
   });
 
-  it("撞墙后优先消耗免费复活，耗尽后进入 REVIVING", () => {
+  it("uses free revivals first, then enters REVIVING when exhausted", () => {
     const { engine, phases, revivals, quizRequired } = createEngine();
     engine.start();
     fireFrame(0);
@@ -130,7 +130,7 @@ describe("GameEngine", () => {
     expect(quizRequired).toHaveBeenCalledTimes(1);
   });
 
-  it("答题复活失败 GAME_OVER 后调用 start() 可以重新开始一局", () => {
+  it("can restart with start() after quiz revival failure and GAME_OVER", () => {
     const { engine, scores, revivals } = createEngine();
     engine.start();
     fireFrame(0);
@@ -151,23 +151,51 @@ describe("GameEngine", () => {
     expect(revivals[revivals.length - 1]).toEqual({ remaining: 3, total: 3 });
   });
 
-  it("非 PLAYING 状态下方向输入不会被蛇接受（不抛错、静默忽略）", () => {
+  it("ignores direction input when not PLAYING (no throw, silent ignore)", () => {
     const { engine } = createEngine();
     engine.attachInput();
-    // 此时是 IDLE 状态，派发方向键事件不应导致任何异常
+    // IDLE: direction key events should not throw
     expect(() => {
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp" }));
     }).not.toThrow();
-    // 仍应停留在 IDLE，证明输入没有被错误地路由到 Snake 上
+    // Should stay IDLE — input not routed to Snake incorrectly
     expect(engine.state.is("IDLE")).toBe(true);
   });
 
-  it("dispose 后停止渲染循环（不再消费 pending 的 rAF 回调）", () => {
+  it("stops render loop after dispose (no pending rAF consumed)", () => {
     const { engine } = createEngine();
     engine.attachInput();
     engine.start();
     fireFrame(0);
     engine.dispose();
     expect(pendingCallback).toBeNull();
+  });
+
+  it("rendered grid length = logical length / 4 (per todo.md)", () => {
+    const { engine, snapshots } = createEngine();
+    // 10x10 grid = 100 cells, enough for 128/4=32 segments without boardCap truncation.
+    engine.start(128);
+    fireFrame(0);
+
+    const lastSnapshot = snapshots[snapshots.length - 1] as {
+      snakeBody: readonly unknown[];
+    };
+    expect(lastSnapshot.snakeBody).toHaveLength(32);
+    expect(engine.getSnakeLength()).toBe(128);
+  });
+
+  it("setSpeed clamps tick interval to valid range", () => {
+    const { engine } = createEngine();
+    const { minMs, maxMs } = engine.getSpeedRange();
+
+    engine.setSpeed(1);
+    expect(engine.getTickIntervalMs()).toBe(minMs);
+
+    engine.setSpeed(10_000);
+    expect(engine.getTickIntervalMs()).toBe(maxMs);
+
+    const mid = Math.round((minMs + maxMs) / 2);
+    engine.setSpeed(mid);
+    expect(engine.getTickIntervalMs()).toBe(mid);
   });
 });
