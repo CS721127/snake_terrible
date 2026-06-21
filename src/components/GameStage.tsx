@@ -41,7 +41,7 @@ export function GameStage({
       : {
           title: "READY?",
           desc: "Choose an 8-bit starting length, then use Arrow keys, WASD, or touch swipes to chase bitwise food.",
-          cta: "START_GAME()",
+          cta: "START GAME",
           state: "idle",
         };
   const copy = phase === "GAME_OVER" ? GAME_OVER_COPY : idleCopy;
@@ -60,7 +60,6 @@ export function GameStage({
           role="dialog"
         >
           <div className="overlay__panel">
-            <p className="overlay__eyebrow">HOST_AUTHORITY / CANVAS</p>
             <h1 className="overlay__title" data-state={copy.state} id="overlay-title">
               {copy.title}
             </h1>
@@ -68,7 +67,7 @@ export function GameStage({
             <button className="overlay__cta" onClick={onStart} type="button">
               {copy.cta}
             </button>
-            <p className="overlay__hint">SPACE / REMOTE_COMMAND</p>
+            <p className="overlay__hint">SPACE</p>
           </div>
         </div>
       </div>
