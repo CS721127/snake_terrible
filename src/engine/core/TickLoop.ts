@@ -26,7 +26,7 @@ export interface TickLoopOptions {
 const MAX_CATCH_UP_TICKS = 5;
 
 export class TickLoop {
-  private readonly tickIntervalMs: number;
+  private tickIntervalMs: number;
   private readonly onTick: () => void;
   private readonly onRender: (frameDeltaMs: number) => void;
 
@@ -46,6 +46,21 @@ export class TickLoop {
 
   get isRunning(): boolean {
     return this.running;
+  }
+
+  get intervalMs(): number {
+    return this.tickIntervalMs;
+  }
+
+  /**
+   * 运行时调整 tick 间隔（玩家在游戏中调整移动速度，todo.md 要求）。
+   * 不打断当前 rAF 循环，下一次 frame() 判定 accumulator 时立即生效；
+   * 同时清空 accumulator，避免切换速度瞬间因为旧的累积值触发"瞬间多步"的跳变。
+   */
+  setTickIntervalMs(nextIntervalMs: number): void {
+    if (nextIntervalMs <= 0) return;
+    this.tickIntervalMs = nextIntervalMs;
+    this.accumulatorMs = 0;
   }
 
   start(): void {

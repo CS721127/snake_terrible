@@ -1,13 +1,5 @@
-export function formatDec(n: number): string {
-  return String(n);
-}
-
-export function formatHex(n: number): string {
-  return `0x${(n & 0xffff).toString(16).toUpperCase().padStart(4, "0")}`;
-}
-
 export function formatBin(n: number): string {
-  return `0b${(n & 0xffff).toString(2).padStart(16, "0")}`;
+  return `0b${(n & 0xff).toString(2).padStart(8, "0")}`;
 }
 
 export function formatTime(ms: number): string {

@@ -170,4 +170,32 @@ describe("GameEngine", () => {
     engine.dispose();
     expect(pendingCallback).toBeNull();
   });
+
+  it("网格内渲染长度 = 逻辑长度 / 4（todo.md 要求）", () => {
+    const { engine, snapshots } = createEngine();
+    // grid 10x10 共 100 格，足够容纳 128/4=32 节蛇身，不会被 boardCap 截断。
+    engine.start(128);
+    fireFrame(0);
+
+    const lastSnapshot = snapshots[snapshots.length - 1] as {
+      snakeBody: readonly unknown[];
+    };
+    expect(lastSnapshot.snakeBody).toHaveLength(32);
+    expect(engine.getSnakeLength()).toBe(128);
+  });
+
+  it("setSpeed 将 tick 间隔限制在合法范围内（clamp）", () => {
+    const { engine } = createEngine();
+    const { minMs, maxMs } = engine.getSpeedRange();
+
+    engine.setSpeed(1);
+    expect(engine.getTickIntervalMs()).toBe(minMs);
+
+    engine.setSpeed(10_000);
+    expect(engine.getTickIntervalMs()).toBe(maxMs);
+
+    const mid = Math.round((minMs + maxMs) / 2);
+    engine.setSpeed(mid);
+    expect(engine.getTickIntervalMs()).toBe(mid);
+  });
 });

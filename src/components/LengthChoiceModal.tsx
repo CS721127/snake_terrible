@@ -12,8 +12,8 @@ export function LengthChoiceModal({
 }: LengthChoiceModalProps): JSX.Element {
   const title = state.reason === "START" ? "SELECT_START_LENGTH" : "PATTERN_LOCKED";
   const description = state.reason === "START"
-    ? "Choose one 16-bit expression before entering the board."
-    : "Score +1. Choose the next length to continue.";
+    ? "Choose one 8-bit expression before entering the board. Result is hidden — calculate it yourself."
+    : "Score +1. Choose the next expression to continue — result is hidden.";
 
   return (
     <div
@@ -40,11 +40,6 @@ export function LengthChoiceModal({
               type="button"
             >
               <span className="length-choice__expr">{choice.expression}</span>
-              <span className="length-choice__result">
-                LEN={choice.resultLength}
-                {choice.reversed ? " / REV" : ""}
-              </span>
-              <span className="length-choice__hex">{choice.resultHex}</span>
             </button>
           ))}
         </div>

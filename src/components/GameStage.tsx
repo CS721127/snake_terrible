@@ -38,7 +38,7 @@ export function GameStage({
         }
       : {
           title: "READY?",
-          desc: "Choose a 16-bit starting length, then use Arrow keys, WASD, or touch swipes to chase bitwise food.",
+          desc: "Choose an 8-bit starting length, then use Arrow keys, WASD, or touch swipes to chase bitwise food.",
           cta: "START_GAME()",
           state: "idle",
         };

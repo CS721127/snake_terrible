@@ -15,12 +15,16 @@ import type {
 } from "@/app/types";
 import { BonusChallengeModal } from "@/components/BonusChallengeModal";
 import { DifficultyToolbar } from "@/components/DifficultyToolbar";
+import { FoodLegendPanel } from "@/components/FoodLegendPanel";
 import { GameStage } from "@/components/GameStage";
 import { Hud } from "@/components/Hud";
 import { LengthChoiceModal } from "@/components/LengthChoiceModal";
 import { QuizModal } from "@/components/QuizModal";
 import { RealtimePanel } from "@/components/RealtimePanel";
 import { SkinSelector } from "@/components/SkinSelector";
+import { SpeedControl } from "@/components/SpeedControl";
+import { WasteExitFlow } from "@/components/WasteExitFlow";
+import type { WasteExitStats } from "@/components/WasteExitFlow";
 import { GameEngine } from "@/engine/GameEngine";
 import type { DifficultyLevel } from "@/engine/GameEngine";
 import { generateLengthChoices } from "@/engine/bitwise/LengthChoices";
@@ -112,12 +116,14 @@ export function App(): JSX.Element {
     setDifficultyState(next);
   }, []);
 
-  const [skinId, setSkinIdState] = useState("default");
+  const [skinId, setSkinIdState] = useState("universities");
   const skinIdRef = useRef(skinId);
   const setSkinId = useCallback((next: string) => {
     skinIdRef.current = next;
     setSkinIdState(next);
   }, []);
+
+  const [tickIntervalMs, setTickIntervalMsState] = useState(150);
 
   const [theme, setTheme] = useState<ThemeMode>("dark");
   const [hud, setHudState] = useState<HudState>(INITIAL_HUD);
@@ -138,6 +144,11 @@ export function App(): JSX.Element {
   const [lengthChoices, setLengthChoices] =
     useState<LengthChoiceViewState>(INITIAL_LENGTH_CHOICES);
   const [bonus, setBonus] = useState<BonusChallengeViewState>(INITIAL_BONUS);
+  const [settlementStats, setSettlementStats] = useState<WasteExitStats | null>(null);
+  const runStartedAtRef = useRef<number | null>(null);
+  const runDirectionPressesRef = useRef(0);
+  const runIdRef = useRef(0);
+  const runFinishedRef = useRef(false);
 
   const [roomForm, setRoomForm] = useState<RoomFormState>({
     roomCode: DEFAULT_ROOM_CODE,
@@ -281,6 +292,42 @@ export function App(): JSX.Element {
   const lastSnapshotSentAtRef = useRef(0);
   const snapshotSequenceRef = useRef(1);
 
+  const handleRunStarted = useCallback(() => {
+    runIdRef.current += 1;
+    runStartedAtRef.current = performance.now();
+    runDirectionPressesRef.current = 0;
+    runFinishedRef.current = false;
+    setSettlementStats(null);
+  }, []);
+
+  const handleDirectionInputStat = useCallback(() => {
+    runDirectionPressesRef.current += 1;
+  }, []);
+
+  const handleRunFinished = useCallback(() => {
+    if (runFinishedRef.current) return;
+
+    runFinishedRef.current = true;
+    const endedAt = performance.now();
+    const startedAt = runStartedAtRef.current ?? endedAt;
+
+    setSettlementStats({
+      id: runIdRef.current,
+      elapsedMs: Math.max(0, endedAt - startedAt),
+      directionPresses: runDirectionPressesRef.current,
+    });
+  }, []);
+
+  const handleEnginePhaseChange = useCallback(
+    (phase: HudState["phase"]) => {
+      setHudPatch({ phase });
+      if (phase === "GAME_OVER") {
+        handleRunFinished();
+      }
+    },
+    [handleRunFinished, setHudPatch],
+  );
+
   useEffect(() => {
     difficultyRef.current = difficulty;
     quizEngineRef.current.setDifficulty(difficulty);
@@ -288,7 +335,6 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     skinIdRef.current = skinId;
-    engineRef.current?.setSkin(skinId);
   }, [skinId]);
 
   useEffect(() => {
@@ -376,7 +422,7 @@ export function App(): JSX.Element {
       },
       onScoreChange: (score) => setHudPatch({ score }),
       onLengthChange: (length) => setHudPatch({ length }),
-      onPhaseChange: (phase) => setHudPatch({ phase }),
+      onPhaseChange: handleEnginePhaseChange,
       onRevivalsChange: (revivalsRemaining, revivalsTotal) =>
         setHudPatch({ revivalsRemaining, revivalsTotal }),
       onQuizRequired: showQuiz,
@@ -406,11 +452,15 @@ export function App(): JSX.Element {
         });
       },
       onSkinChange: setSkinId,
+      onSpeedChange: setTickIntervalMsState,
+      onGameStart: handleRunStarted,
+      onDirectionInput: handleDirectionInputStat,
     });
 
     engineRef.current = engine;
     engine.attachInput();
     setHudPatch(INITIAL_HUD);
+    setTickIntervalMsState(engine.getTickIntervalMs());
     renderEmptyBoard();
 
     return () => {
@@ -421,6 +471,9 @@ export function App(): JSX.Element {
     };
   }, [
     difficulty,
+    handleDirectionInputStat,
+    handleEnginePhaseChange,
+    handleRunStarted,
     publishHostSnapshot,
     renderEmptyBoard,
     roomForm.role,
@@ -450,6 +503,18 @@ export function App(): JSX.Element {
       input.detach();
     };
   }, [connectedRoom, publishInput, roomForm.role, sessionId, status]);
+
+  const handleSpeedChange = useCallback((nextTickIntervalMs: number) => {
+    engineRef.current?.setSpeed(nextTickIntervalMs);
+  }, []);
+
+  const handleSkinChange = useCallback(
+    (nextSkinId: string) => {
+      setSkinId(nextSkinId);
+      engineRef.current?.setSkin(nextSkinId);
+    },
+    [setSkinId],
+  );
 
   const handleStart = useCallback(() => {
     if (roleRef.current === "client") {
@@ -552,6 +617,16 @@ export function App(): JSX.Element {
     }
   }, [finishQuiz, quiz.answerText]);
 
+  const handleQuizSkip = useCallback(() => {
+    if (!currentQuizRef.current) return;
+    setQuiz((prev) => ({
+      ...prev,
+      feedback: "Skipped.",
+      feedbackOk: false,
+    }));
+    finishQuiz(false, 300);
+  }, [finishQuiz]);
+
   const handleBonusAnswerChange = useCallback((answerText: string) => {
     setBonus((prev) => ({
       ...prev,
@@ -597,49 +672,62 @@ export function App(): JSX.Element {
 
   return (
     <div className="app-shell">
-      <div className="app-shell__stack">
-        <Hud
-          hud={hud}
-          onToggleTheme={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
-          theme={theme}
-        />
+      <div className="app-shell__layout">
+        <div className="app-shell__stack">
+          <Hud
+            hud={hud}
+            onToggleTheme={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+            theme={theme}
+          />
 
-        <RealtimePanel
-          connectedRole={connectedRole}
-          connectedRoom={connectedRoom}
-          error={error}
-          form={roomForm}
-          isConfigured={isConfigured}
-          onConnect={handleConnect}
-          onDisconnect={() => void disconnect()}
-          onRoleChange={handleRoleChange}
-          onRoomCodeChange={handleRoomCodeChange}
-          status={status}
-        />
+          <RealtimePanel
+            connectedRole={connectedRole}
+            connectedRoom={connectedRoom}
+            error={error}
+            form={roomForm}
+            isConfigured={isConfigured}
+            onConnect={handleConnect}
+            onDisconnect={() => void disconnect()}
+            onRoleChange={handleRoleChange}
+            onRoomCodeChange={handleRoomCodeChange}
+            status={status}
+          />
 
-        <DifficultyToolbar
-          difficulty={difficulty}
-          onDifficultyChange={setDifficulty}
-          readOnly={readOnlyByHost}
-        />
+          <DifficultyToolbar
+            difficulty={difficulty}
+            onDifficultyChange={setDifficulty}
+            readOnly={readOnlyByHost}
+          />
 
-        <SkinSelector
-          onSkinChange={setSkinId}
-          readOnly={readOnlyByHost}
-          skinId={skinId}
-        />
+          <SkinSelector
+            onSkinChange={handleSkinChange}
+            readOnly={readOnlyByHost}
+            skinId={skinId}
+          />
 
-        <GameStage
-          canvasRef={canvasRef}
-          difficulty={difficulty}
-          onStart={handleStart}
-          phase={hud.phase}
-          role={roomForm.role}
-        />
+          <SpeedControl
+            maxMs={engineRef.current?.getSpeedRange().maxMs ?? 320}
+            minMs={engineRef.current?.getSpeedRange().minMs ?? 60}
+            onSpeedChange={handleSpeedChange}
+            readOnly={readOnlyByHost || roomForm.role === "client"}
+            tickIntervalMs={tickIntervalMs}
+          />
+
+          <GameStage
+            canvasRef={canvasRef}
+            difficulty={difficulty}
+            onStart={handleStart}
+            phase={hud.phase}
+            role={roomForm.role}
+          />
+        </div>
+
+        <FoodLegendPanel />
       </div>
 
       <QuizModal
         onAnswerChange={handleQuizAnswerChange}
+        onSkip={handleQuizSkip}
         onSubmit={handleQuizSubmit}
         state={quiz}
       />
@@ -655,6 +743,8 @@ export function App(): JSX.Element {
         onSubmit={handleBonusSubmit}
         state={bonus}
       />
+
+      <WasteExitFlow stats={settlementStats} />
     </div>
   );
 }

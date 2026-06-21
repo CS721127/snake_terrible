@@ -5,6 +5,7 @@ import {
   type BitwiseFoodOperation,
   formatHex8,
 } from "@/engine/bitwise/BitwiseMath";
+import { getFoodLegendEntry } from "@/engine/bitwise/FoodLegend";
 
 export interface BitwiseFoodSnapshot extends Cell {
   readonly operation: BitwiseFoodOperation;
@@ -14,15 +15,6 @@ export interface BitwiseFoodSnapshot extends Cell {
 }
 
 const OPERATIONS: readonly BitwiseFoodOperation[] = ["&", "|", "^", "<<", ">>", "~"];
-
-const FOOD_TONES: Record<BitwiseFoodOperation, string> = {
-  "&": "and",
-  "|": "or",
-  "^": "xor",
-  "<<": "shift-left",
-  ">>": "shift-right",
-  "~": "not",
-};
 
 export class BitwiseFood {
   private currentPosition: Cell;
@@ -45,7 +37,7 @@ export class BitwiseFood {
       operation: this.operation,
       value: this.value,
       label: this.createLabel(),
-      tone: FOOD_TONES[this.operation],
+      tone: getFoodLegendEntry(this.operation).tone,
     };
   }
 

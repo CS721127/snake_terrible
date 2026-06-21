@@ -1,5 +1,5 @@
 import type { HudState, ThemeMode } from "@/app/types";
-import { formatBin, formatDec, formatHex, formatTime } from "@/app/format";
+import { formatBin, formatTime } from "@/app/format";
 
 interface HudProps {
   readonly hud: HudState;
@@ -18,9 +18,7 @@ export function Hud({ hud, theme, onToggleTheme }: HudProps): JSX.Element {
       </div>
 
       <div className="hud__stats">
-        <Stat label="LEN_DEC" value={formatDec(hud.length)} />
-        <Stat label="LEN_HEX" value={formatHex(hud.length)} tone="hex" />
-        <Stat label="LEN_BIN" value={formatBin(hud.length)} tone="bin" />
+        <Stat label="LEN_BIN" value={formatBin(hud.length)} tone="bin-primary" />
         <Stat label="SCORE" value={String(hud.score)} />
         <Stat label="TARGET" value={String(hud.targetScore)} />
         <Stat label="TIME" value={formatTime(hud.timeRemainingMs)} tone="state" />
@@ -64,7 +62,7 @@ export function Hud({ hud, theme, onToggleTheme }: HudProps): JSX.Element {
 interface StatProps {
   readonly label: string;
   readonly value: string;
-  readonly tone?: "hex" | "bin" | "state";
+  readonly tone?: "hex" | "bin" | "bin-primary" | "state";
 }
 
 function Stat({ label, value, tone }: StatProps): JSX.Element {
