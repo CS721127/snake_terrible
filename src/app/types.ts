@@ -1,5 +1,5 @@
 import type { GamePhase } from "@/engine/core/GameState";
-import type { GameResult, LengthChoiceRequest } from "@/engine/GameEngine";
+import type { GameResult, LengthChoiceRequest, RunStats } from "@/engine/GameEngine";
 import type { PostGameChallenge } from "@/engine/bitwise/PostGameChallenge";
 import type { RealtimeRole } from "@/realtime/types";
 
@@ -45,4 +45,17 @@ export interface BonusChallengeViewState {
   readonly feedback: string;
   readonly feedbackOk: boolean;
   readonly resolved: boolean;
+}
+
+/** 结算框（todo.md 要求）：游戏结束后展示这一局耗时与方向键按键次数。 */
+export interface RunSummaryViewState {
+  readonly visible: boolean;
+  readonly stats: RunStats | null;
+}
+
+/** 退出整蛊流程的四个阶段（todo.md 要求），none 表示流程未触发。 */
+export type ExitTrollStage = "none" | "video" | "image" | "math" | "done";
+
+export interface ExitTrollViewState {
+  readonly stage: ExitTrollStage;
 }

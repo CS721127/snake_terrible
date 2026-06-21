@@ -634,25 +634,6 @@ input:disabled {
     transition: var(--transition-theme);
   }
 
-  .stage__board:fullscreen {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100vw;
-    height: 100vh;
-    max-width: none;
-    border: none;
-    border-radius: 0;
-    background: var(--color-bg);
-  }
-
-  .stage__board:fullscreen #game-canvas {
-    max-width: 96vw;
-    max-height: 96vh;
-    width: auto;
-    height: auto;
-  }
-
   #game-canvas {
     display: block;
     border-radius: var(--radius-panel);
@@ -1041,6 +1022,357 @@ input:disabled {
 
   .bonus-modal__feedback[data-visible="false"] {
     opacity: 0;
+  }
+
+  /* ---------- Run summary modal (todo.md：耗时 + 按键次数结算框) ---------- */
+
+  .run-summary-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 130;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.62);
+    backdrop-filter: blur(4px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+
+  .run-summary-modal[data-visible="true"] {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .run-summary-modal__panel {
+    width: min(92vw, 480px);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-panel);
+    box-shadow: var(--shadow-panel), var(--shadow-glow);
+    padding: 26px;
+    text-align: center;
+  }
+
+  .run-summary-modal__eyebrow {
+    margin: 0 0 10px;
+    color: var(--color-text-muted);
+    font-size: 0.62rem;
+    letter-spacing: 0.16em;
+  }
+
+  .run-summary-modal__title {
+    margin: 0 0 18px;
+    color: var(--color-phosphor-bright);
+    font-size: 1.4rem;
+  }
+
+  .run-summary-modal__stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .run-summary-modal__stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-panel);
+    background: var(--color-input-bg);
+    padding: 12px 8px;
+  }
+
+  .run-summary-modal__stat-label {
+    color: var(--color-text-muted);
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+  }
+
+  .run-summary-modal__stat-value {
+    color: var(--color-phosphor);
+    font-size: 1.3rem;
+    font-weight: 800;
+  }
+
+  .run-summary-modal__desc {
+    margin: 0 0 18px;
+    color: var(--color-text-primary);
+    font-size: 0.78rem;
+    line-height: 1.6;
+  }
+
+  .run-summary-modal__exit {
+    border: 0;
+    border-radius: var(--radius-panel);
+    background: var(--color-danger);
+    color: #1a0508;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 800;
+    padding: 10px 28px;
+  }
+
+  /* ---------- Exit troll overlay (todo.md：退出按钮后的整蛊流程) ---------- */
+
+  .exit-troll {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+  }
+
+  .exit-troll[data-visible="true"] {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .exit-troll__stage {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* --- Video stage --- */
+
+  .exit-troll__video-exit-label {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    z-index: 5;
+    border: 0;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.55);
+    cursor: pointer;
+    font-size: 0.7rem;
+    letter-spacing: 0.02em;
+    padding: 4px 6px;
+  }
+
+  .exit-troll__video-frame {
+    width: min(92vw, 860px);
+    aspect-ratio: 16 / 9;
+    display: flex;
+    flex-direction: column;
+    background: #0a0a0a;
+    border-radius: var(--radius-card);
+    overflow: hidden;
+  }
+
+  .exit-troll__video-placeholder {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: rgba(255, 255, 255, 0.35);
+  }
+
+  .exit-troll__video-glyph {
+    font-size: 2.6rem;
+  }
+
+  .exit-troll__video-caption {
+    margin: 0;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+  }
+
+  .exit-troll__video-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 10px 14px;
+  }
+
+  .exit-troll__video-play {
+    border: 0;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.7rem;
+  }
+
+  .exit-troll__video-progress {
+    flex: 1;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.18);
+    overflow: hidden;
+  }
+
+  .exit-troll__video-progress-fill {
+    height: 100%;
+    background: var(--color-danger);
+    transition: width 0.2s linear;
+  }
+
+  .exit-troll__video-time {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.68rem;
+    white-space: nowrap;
+  }
+
+  /* --- Image stage --- */
+
+  .exit-troll__image-frame {
+    position: relative;
+    width: min(92vw, 640px);
+    height: min(70vh, 480px);
+    border-radius: var(--radius-card);
+    background: #0a0a0a;
+    overflow: hidden;
+    touch-action: none;
+  }
+
+  .exit-troll__image-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: rgba(255, 255, 255, 0.3);
+  }
+
+  .exit-troll__image-glyph {
+    font-size: 3rem;
+  }
+
+  .exit-troll__image-caption {
+    margin: 0;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+  }
+
+  .exit-troll__evade-button {
+    position: absolute;
+    z-index: 5;
+    border: 1px solid rgba(255, 77, 106, 0.6);
+    border-radius: var(--radius-panel);
+    background: rgba(255, 77, 106, 0.18);
+    color: #ffd7dd;
+    cursor: pointer;
+    font-size: 0.74rem;
+    font-weight: 700;
+    padding: 8px 14px;
+    transition: left 0.08s ease-out, top 0.08s ease-out;
+  }
+
+  /* --- Math stage --- */
+
+  .exit-troll__math-panel {
+    width: min(92vw, 560px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: var(--radius-card);
+    background: #0c0c0c;
+    padding: 26px;
+    text-align: center;
+  }
+
+  .exit-troll__math-eyebrow {
+    margin: 0 0 10px;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.62rem;
+    letter-spacing: 0.16em;
+  }
+
+  .exit-troll__math-prompt {
+    margin: 0 0 18px;
+    color: #fff;
+    font-size: 0.95rem;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+  }
+
+  .exit-troll__math-input-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .exit-troll__math-input {
+    min-width: 0;
+    flex: 1;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: var(--radius-panel);
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    outline: none;
+    padding: 9px 10px;
+    text-align: center;
+  }
+
+  .exit-troll__math-input:focus {
+    border-color: var(--color-danger);
+  }
+
+  .exit-troll__math-submit {
+    border: 0;
+    border-radius: var(--radius-panel);
+    background: var(--color-danger);
+    color: #1a0508;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 800;
+    padding: 8px 16px;
+  }
+
+  .exit-troll__math-hint-toggle {
+    border: 0;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    font-size: 0.68rem;
+    text-decoration: underline;
+  }
+
+  .exit-troll__math-hint {
+    margin: 10px 0 0;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.72rem;
+    line-height: 1.5;
+  }
+
+  .exit-troll__math-feedback {
+    min-height: 1.4em;
+    margin: 10px 0 0;
+    color: var(--color-danger);
+    font-size: 0.74rem;
+  }
+
+  .exit-troll__math-feedback[data-visible="false"] {
+    opacity: 0;
+  }
+
+  /* --- Done stage --- */
+
+  .exit-troll__done-panel {
+    text-align: center;
+  }
+
+  .exit-troll__done-title {
+    margin: 0;
+    color: var(--color-phosphor-bright);
+    font-size: 1.6rem;
+    font-weight: 800;
   }
 }
 

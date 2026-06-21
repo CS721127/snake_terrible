@@ -38,6 +38,12 @@ export interface LengthChoiceRequest {
   readonly choices: readonly LengthChoice[];
 }
 
+/** 一局游戏的结算统计（todo.md 要求）：耗时与方向键按键次数。 */
+export interface RunStats {
+  readonly elapsedMs: number;
+  readonly arrowKeyPresses: number;
+}
+
 const GAME_DURATION_MS = 180_000;
 const TARGET_SCORE = 5;
 const MAX_RENDERED_SNAKE_SEGMENTS = 128;
@@ -76,6 +82,8 @@ export interface GameEngineOptions {
   onBonusChallengeChange?: (challenge: PostGameChallenge | null, resolved: boolean) => void;
   onSkinChange?: (skinId: string) => void;
   onSpeedChange?: (tickIntervalMs: number) => void;
+  /** todo.md 要求：游戏结束（含复活失败）后，结算这一局花了多久、按了多少次方向键。 */
+  onRunStatsChange?: (stats: RunStats) => void;
 }
 
 export class GameEngine {
@@ -100,6 +108,10 @@ export class GameEngine {
   private bonusResolved = false;
   private waitingForLengthChoice = false;
 
+  /** todo.md 要求的计时与按键统计：在 start() 时清零/记录起点，finishGame() 时结算。 */
+  private runStartedAtMs: number | null = null;
+  private arrowKeyPresses = 0;
+
   private readonly onRenderSnapshot: (snapshot: RenderSnapshot) => void;
   private readonly onScoreChange?: (score: number) => void;
   private readonly onLengthChange?: (length: number) => void;
@@ -114,6 +126,7 @@ export class GameEngine {
   ) => void;
   private readonly onSkinChange?: (skinId: string) => void;
   private readonly onSpeedChange?: (tickIntervalMs: number) => void;
+  private readonly onRunStatsChange?: (stats: RunStats) => void;
 
   constructor(options: GameEngineOptions) {
     const difficulty = options.difficulty ?? "MEDIUM";
@@ -138,6 +151,7 @@ export class GameEngine {
     this.onBonusChallengeChange = options.onBonusChallengeChange;
     this.onSkinChange = options.onSkinChange;
     this.onSpeedChange = options.onSpeedChange;
+    this.onRunStatsChange = options.onRunStatsChange;
 
     this.collisionDetector = new CollisionDetector(this.grid);
     this.foodPool = new FoodPool(this.grid);
@@ -192,6 +206,8 @@ export class GameEngine {
     this.bonusChallenge = null;
     this.bonusResolved = false;
     this.waitingForLengthChoice = false;
+    this.runStartedAtMs = Date.now();
+    this.arrowKeyPresses = 0;
     this.patternGoal = generateLengthPatternGoal(this.logicalLength);
     this.snake = this.createInitialSnake(this.logicalLength);
     if (reverseFromTail) {
@@ -325,6 +341,9 @@ export class GameEngine {
   }
 
   private handleDirectionInput(direction: Direction): void {
+    if (this.state.is("PLAYING") && !this.waitingForLengthChoice) {
+      this.arrowKeyPresses += 1;
+    }
     this.queueDirection(direction);
   }
 
@@ -418,6 +437,13 @@ export class GameEngine {
     this.bonusResolved = false;
     this.onGameResultChange?.(this.gameResult);
     this.onBonusChallengeChange?.(this.bonusChallenge, this.bonusResolved);
+
+    const elapsedMs = this.runStartedAtMs !== null ? Date.now() - this.runStartedAtMs : 0;
+    this.onRunStatsChange?.({
+      elapsedMs: Math.max(0, elapsedMs),
+      arrowKeyPresses: this.arrowKeyPresses,
+    });
+
     this.renderFrame();
   }
 

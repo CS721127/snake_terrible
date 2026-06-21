@@ -7,23 +7,28 @@ import {
 import { normalizeRoomCode } from "@/app/format";
 import type {
   BonusChallengeViewState,
+  ExitTrollStage,
+  ExitTrollViewState,
   HudState,
   LengthChoiceViewState,
   QuizViewState,
   RoomFormState,
+  RunSummaryViewState,
   ThemeMode,
 } from "@/app/types";
 import { BonusChallengeModal } from "@/components/BonusChallengeModal";
 import { DifficultyToolbar } from "@/components/DifficultyToolbar";
+import { ExitTrollOverlay } from "@/components/ExitTrollOverlay";
 import { FoodLegendPanel } from "@/components/FoodLegendPanel";
 import { GameStage } from "@/components/GameStage";
 import { Hud } from "@/components/Hud";
 import { LengthChoiceModal } from "@/components/LengthChoiceModal";
 import { QuizModal } from "@/components/QuizModal";
 import { RealtimePanel } from "@/components/RealtimePanel";
+import { RunSummaryModal } from "@/components/RunSummaryModal";
 import { SpeedControl } from "@/components/SpeedControl";
 import { GameEngine } from "@/engine/GameEngine";
-import type { DifficultyLevel } from "@/engine/GameEngine";
+import type { DifficultyLevel, RunStats } from "@/engine/GameEngine";
 import { generateLengthChoices } from "@/engine/bitwise/LengthChoices";
 import type { LengthChoice } from "@/engine/bitwise/LengthChoices";
 import { InputController } from "@/engine/core/InputController";
@@ -76,6 +81,15 @@ const INITIAL_BONUS: BonusChallengeViewState = {
   feedback: "",
   feedbackOk: false,
   resolved: false,
+};
+
+const INITIAL_RUN_SUMMARY: RunSummaryViewState = {
+  visible: false,
+  stats: null,
+};
+
+const INITIAL_EXIT_TROLL: ExitTrollViewState = {
+  stage: "none",
 };
 
 function createEmptySnapshot(
@@ -142,6 +156,8 @@ export function App(): JSX.Element {
   const [lengthChoices, setLengthChoices] =
     useState<LengthChoiceViewState>(INITIAL_LENGTH_CHOICES);
   const [bonus, setBonus] = useState<BonusChallengeViewState>(INITIAL_BONUS);
+  const [runSummary, setRunSummary] = useState<RunSummaryViewState>(INITIAL_RUN_SUMMARY);
+  const [exitTroll, setExitTroll] = useState<ExitTrollViewState>(INITIAL_EXIT_TROLL);
 
   const [roomForm, setRoomForm] = useState<RoomFormState>({
     roomCode: DEFAULT_ROOM_CODE,
@@ -410,6 +426,9 @@ export function App(): JSX.Element {
       },
       onSkinChange: setSkinId,
       onSpeedChange: setTickIntervalMsState,
+      onRunStatsChange: (stats: RunStats) => {
+        setRunSummary({ visible: true, stats });
+      },
     });
 
     engineRef.current = engine;
@@ -460,17 +479,6 @@ export function App(): JSX.Element {
     engineRef.current?.setSpeed(nextTickIntervalMs);
   }, []);
 
-  const requestStageFullscreen = useCallback(() => {
-    const node = stageBoardRef.current;
-    if (!node || document.fullscreenElement) return;
-    // Fullscreen API 必须在用户手势的同一调用栈内触发，因此放在 handleStart
-    // （START 按钮点击 / 空格键事件处理函数）内部同步调用，而不是 useEffect 里。
-    node.requestFullscreen?.().catch(() => {
-      // 某些浏览器/嵌入式 webview 会拒绝全屏请求（例如 iframe 未设置 allow="fullscreen"），
-      // 这里静默失败，不阻塞游戏正常开始。
-    });
-  }, []);
-
   const handleStart = useCallback(() => {
     if (roleRef.current === "client") {
       if (status !== "connected" || !connectedRoom) return;
@@ -484,13 +492,12 @@ export function App(): JSX.Element {
       return;
     }
 
-    requestStageFullscreen();
     setLengthChoices({
       visible: true,
       reason: "START",
       choices: generateLengthChoices(),
     });
-  }, [connectedRoom, publishCommand, requestStageFullscreen, sessionId, status]);
+  }, [connectedRoom, publishCommand, sessionId, status]);
 
   const handleLengthChoice = useCallback(
     (choice: LengthChoice) => {
@@ -607,6 +614,19 @@ export function App(): JSX.Element {
     setBonus((prev) => ({ ...prev, visible: false }));
   }, []);
 
+  /**
+   * 结算框的"退出"按钮：关闭结算框，进入整蛊流程第一关（占位视频）。
+   * todo.md 要求：这里只有退出按钮，没有"再玩一次"，点击后就走完整整蛊链路。
+   */
+  const handleRunSummaryExit = useCallback(() => {
+    setRunSummary(INITIAL_RUN_SUMMARY);
+    setExitTroll({ stage: "video" });
+  }, []);
+
+  const handleExitTrollAdvance = useCallback((nextStage: ExitTrollStage) => {
+    setExitTroll({ stage: nextStage });
+  }, []);
+
   const handleConnect = useCallback(() => {
     const roomCode = normalizeRoomCode(roomForm.roomCode);
     setRoomForm((prev) => ({ ...prev, roomCode }));
@@ -694,6 +714,10 @@ export function App(): JSX.Element {
         onSubmit={handleBonusSubmit}
         state={bonus}
       />
+
+      <RunSummaryModal onExit={handleRunSummaryExit} state={runSummary} />
+
+      <ExitTrollOverlay onAdvance={handleExitTrollAdvance} state={exitTroll} />
     </div>
   );
 }

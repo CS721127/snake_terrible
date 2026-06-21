@@ -3,8 +3,12 @@ import type { RenderSnapshot } from "./Renderer";
 import type { Direction } from "../engine/core/types";
 import type { BitwiseFoodSnapshot } from "../engine/bitwise/BitwiseFood";
 import { foodColorByTone } from "../engine/bitwise/FoodLegend";
-import { getSkinAsset } from "../engine/skins";
-import type { SkinAsset } from "../engine/skins";
+import {
+  getSkinAsset,
+  getUniversityForSegment,
+  UNIVERSITY_SKIN_ID,
+} from "../engine/skins";
+import type { SkinAsset, UniversityAsset } from "../engine/skins";
 
 /**
  * SkinImageCache：管理图片皮肤的 HTMLImageElement 缓存。
@@ -50,16 +54,54 @@ class SkinImageCache {
 }
 
 /**
+ * UniversityLogoCache：拼接蛇皮肤专用的逐校 logo 缓存。
+ * 与 SkinImageCache 分开是因为拼接蛇不是"一个皮肤两张图"，
+ * 而是"一个皮肤、每段身体可能对应不同大学的 logo"，按大学 id 缓存即可，
+ * 任意一所大学的 logo 缺失/加载失败时该段自动回退到颜色块 + 缩写。
+ */
+class UniversityLogoCache {
+  private cache = new Map<string, HTMLImageElement>();
+  private loading = new Set<string>();
+  private failed = new Set<string>();
+
+  preload(university: UniversityAsset): void {
+    const { id, logoSrc } = university;
+    if (!logoSrc || this.cache.has(id) || this.loading.has(id) || this.failed.has(id)) {
+      return;
+    }
+
+    this.loading.add(id);
+    const img = new Image();
+    img.onload = () => {
+      this.cache.set(id, img);
+      this.loading.delete(id);
+    };
+    img.onerror = () => {
+      // 该大学 logo 文件还没准备好（todo.md 占位阶段），记下来避免重复尝试加载。
+      this.loading.delete(id);
+      this.failed.add(id);
+    };
+    img.src = logoSrc;
+  }
+
+  get(universityId: string): HTMLImageElement | null {
+    return this.cache.get(universityId) ?? null;
+  }
+}
+
+/**
  * CanvasRenderer：Sprint 1.5 单机模式渲染器。
  *
  * 新增：
  * - 皮肤系统（default 纯色 / 图片皮肤，通过 SkinImageCache 异步加载）
+ * - 拼接蛇皮肤（university）：逐段按 UNSW→Melbourne→Sydney→...→Western→UNSW 循环取 logo
  * - 多食物池渲染（foods 数组）
  * - 蛇头方向旋转（图片皮肤时自动旋转头部图片）
  */
 export class CanvasRenderer extends Renderer {
   private lastResizedKey: string | null = null;
   private readonly skinCache = new SkinImageCache();
+  private readonly universityLogoCache = new UniversityLogoCache();
 
   render(snapshot: RenderSnapshot): void {
     const { grid, cellSizePx, snakeBody, snakeDirection, foods, skinId } = snapshot;
@@ -71,11 +113,6 @@ export class CanvasRenderer extends Renderer {
     }
 
     const skinAsset = getSkinAsset(skinId);
-    // 预加载图片皮肤（如果还没加载）
-    if (skinAsset.headSrc && skinAsset.bodySrc) {
-      this.skinCache.preload(skinId);
-    }
-
     const widthPx = grid.columns * cellSizePx;
     const heightPx = grid.rows * cellSizePx;
 
@@ -84,6 +121,16 @@ export class CanvasRenderer extends Renderer {
 
     for (const food of foods) {
       this.drawFood(food, cellSizePx);
+    }
+
+    if (skinId === UNIVERSITY_SKIN_ID) {
+      this.drawUniversitySnake(snakeBody, snakeDirection, cellSizePx);
+      return;
+    }
+
+    // 预加载图片皮肤（如果还没加载）
+    if (skinAsset.headSrc && skinAsset.bodySrc) {
+      this.skinCache.preload(skinId);
     }
 
     const images = skinAsset.headSrc && skinAsset.bodySrc
@@ -180,6 +227,67 @@ export class CanvasRenderer extends Renderer {
           }
         }
       }
+    }
+  }
+
+  /**
+   * 拼接蛇皮肤的逐段绘制：每一段身体根据它在蛇身上的位置（index）
+   * 去查对应的大学（getUniversityForSegment），而不是整条蛇共用一张 head/body 图。
+   * index 0（蛇头）永远是 UNSW；用完一整轮大学后从 UNSW 重新循环。
+   */
+  private drawUniversitySnake(
+    body: readonly { x: number; y: number }[],
+    direction: Direction,
+    cellSizePx: number,
+  ): void {
+    const { ctx } = this;
+    const padding = Math.max(1, Math.floor(cellSizePx * 0.08));
+
+    for (let i = 0; i < body.length; i++) {
+      const segment = body[i];
+      if (!segment) continue;
+      const isHead = i === 0;
+
+      const university = getUniversityForSegment(i);
+      this.universityLogoCache.preload(university);
+      const logo = this.universityLogoCache.get(university.id);
+
+      const x = segment.x * cellSizePx + padding;
+      const y = segment.y * cellSizePx + padding;
+      const size = cellSizePx - padding * 2;
+
+      if (logo) {
+        if (isHead) {
+          ctx.save();
+          ctx.translate(x + size / 2, y + size / 2);
+          ctx.rotate(this.directionToAngle(direction));
+          ctx.drawImage(logo, -size / 2, -size / 2, size, size);
+          ctx.restore();
+        } else {
+          ctx.drawImage(logo, x, y, size, size);
+        }
+        continue;
+      }
+
+      // Logo 还没准备好时的占位：该大学专属颜色块 + 缩写，行为与其它图片皮肤的回退逻辑一致。
+      ctx.fillStyle = university.placeholder.color;
+      ctx.fillRect(x, y, size, size);
+
+      if (isHead) {
+        ctx.strokeStyle = "#D6FFE6";
+        ctx.lineWidth = Math.max(1, cellSizePx * 0.04);
+        ctx.strokeRect(x, y, size, size);
+      }
+
+      ctx.fillStyle = "#06130b";
+      ctx.font = `${Math.max(7, Math.floor(cellSizePx * 0.36))}px monospace`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(
+        university.placeholder.initials.slice(0, 2),
+        x + size / 2,
+        y + size / 2,
+      );
     }
   }
 
