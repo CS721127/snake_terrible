@@ -3,14 +3,13 @@ import type { Direction } from "./types";
 type DirectionListener = (direction: Direction) => void;
 
 export interface InputControllerOptions {
-  /** 触屏滑动手势的最小有效距离（像素），低于这个距离视为误触/点击，不触发转向。 */
+  /** Minimum swipe distance (px) for touch gestures; below this counts as accidental tap, no turn. */
   swipeThresholdPx?: number;
   /**
-   * 节流间隔（毫秒）：同一时间窗口内只接受一次方向输入。
-   * 防误触场景：手指/手柄在短时间内连续触发多次相同或不同方向的事件
-   * （例如键盘按键重复触发、触屏滑动结束时的惯性多次 touchmove）。
-   * 注意这与 TickLoop 的 tick 节流是两件事——这里限制的是"输入事件本身的频率"，
-   * 而不是"逻辑帧的频率"；即使节流值小于 tick 间隔，仍能防止单个 tick 内被同一手势触发多次。
+   * Throttle interval (ms): accept at most one direction input per window.
+   * Prevents accidental bursts (key repeat, touch inertia after swipe end).
+   * Separate from TickLoop tick rate — this limits input event frequency, not logic frame rate;
+   * even if throttle < tick interval, it still prevents multiple turns from one gesture in a single tick.
    */
   throttleMs?: number;
 }
@@ -19,10 +18,10 @@ const DEFAULT_SWIPE_THRESHOLD_PX = 24;
 const DEFAULT_THROTTLE_MS = 60;
 
 /**
- * InputController：统一键盘 + 触屏输入，对外只暴露"方向输入事件"。
+ * InputController: unified keyboard + touch input; exposes only "direction input" events.
  *
- * 不直接依赖 Snake/GameEngine，而是用监听者模式向外广播 Direction，
- * 这样测试时可以完全脱离 DOM 真实事件，直接调用内部处理函数验证节流逻辑。
+ * Does not depend on Snake/GameEngine directly; broadcasts Direction via listener pattern
+ * so tests can validate throttle logic without real DOM events.
  */
 export class InputController {
   private readonly swipeThresholdPx: number;
@@ -51,7 +50,7 @@ export class InputController {
     this.boundTouchEnd = this.handleTouchEnd.bind(this);
   }
 
-  /** 开始监听 DOM 事件。 */
+  /** Start listening to DOM events. */
   attach(): void {
     this.target.addEventListener("keydown", this.boundKeydown as EventListener);
     this.target.addEventListener("touchstart", this.boundTouchStart as EventListener, {
@@ -65,7 +64,7 @@ export class InputController {
     });
   }
 
-  /** 停止监听，避免内存泄漏（页面切走/组件卸载时调用）。 */
+  /** Stop listening to avoid leaks (call on page leave / component unmount). */
   detach(): void {
     this.target.removeEventListener("keydown", this.boundKeydown as EventListener);
     this.target.removeEventListener("touchstart", this.boundTouchStart as EventListener);
@@ -92,7 +91,7 @@ export class InputController {
   private handleKeydown(e: KeyboardEvent): void {
     const direction = InputController.keyToDirection(e.key);
     if (!direction) return;
-    // 阻止方向键滚动页面这种默认行为干扰游戏操作体验。
+    // Prevent arrow keys from scrolling the page and interfering with gameplay.
     e.preventDefault();
     this.emit(direction);
   }
@@ -129,9 +128,9 @@ export class InputController {
   }
 
   /**
-   * 在 touchmove 阶段就判定方向（而不是等 touchend），
-   * 这样滑动操作的响应更及时，手感更接近原生游戏的"滑一下立刻转向"。
-   * 判定后立即把 touchActive 置为 false，避免同一次滑动连续触发多个方向事件。
+   * Resolve direction on touchmove (not touchend) for snappier swipe response,
+   * closer to native "swipe once, turn immediately".
+   * After resolving, touchActive is false so one swipe does not emit multiple directions.
    */
   private handleTouchMove(e: TouchEvent): void {
     if (!this.touchActive) return;
@@ -150,7 +149,7 @@ export class InputController {
     const direction: Direction =
       absDx > absDy ? (dx > 0 ? "RIGHT" : "LEFT") : dy > 0 ? "DOWN" : "UP";
 
-    this.touchActive = false; // 本次滑动已判定，等待下一次 touchstart 重新激活
+    this.touchActive = false; // swipe resolved; wait for next touchstart
     this.emit(direction);
   }
 

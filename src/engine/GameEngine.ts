@@ -38,7 +38,7 @@ export interface LengthChoiceRequest {
   readonly choices: readonly LengthChoice[];
 }
 
-/** 一局游戏的结算统计（todo.md 要求）：耗时与方向键按键次数。 */
+/** Per-run summary stats (per todo.md): elapsed time and arrow key presses. */
 export interface RunStats {
   readonly elapsedMs: number;
   readonly arrowKeyPresses: number;
@@ -48,7 +48,7 @@ const GAME_DURATION_MS = 180_000;
 const TARGET_SCORE = 5;
 const MAX_RENDERED_SNAKE_SEGMENTS = 128;
 
-/** 玩家可在游戏中调整的 tick 间隔范围（todo.md 要求运行时调速）。数值越小蛇移动越快。 */
+/** Tick interval range adjustable in-game (per todo.md runtime speed). Lower value = faster snake. */
 const MIN_TICK_INTERVAL_MS = 60;
 const MAX_TICK_INTERVAL_MS = 320;
 
@@ -82,7 +82,7 @@ export interface GameEngineOptions {
   onBonusChallengeChange?: (challenge: PostGameChallenge | null, resolved: boolean) => void;
   onSkinChange?: (skinId: string) => void;
   onSpeedChange?: (tickIntervalMs: number) => void;
-  /** todo.md 要求：游戏结束（含复活失败）后，结算这一局花了多久、按了多少次方向键。 */
+  /** Per todo.md: after game over (including revival failure), report elapsed time and arrow key count. */
   onRunStatsChange?: (stats: RunStats) => void;
 }
 
@@ -108,7 +108,7 @@ export class GameEngine {
   private bonusResolved = false;
   private waitingForLengthChoice = false;
 
-  /** todo.md 要求的计时与按键统计：在 start() 时清零/记录起点，finishGame() 时结算。 */
+  /** Per todo.md timing and key stats: reset/record start on start(), settle on finishGame(). */
   private runStartedAtMs: number | null = null;
   private arrowKeyPresses = 0;
 
@@ -263,9 +263,9 @@ export class GameEngine {
   }
 
   /**
-   * 玩家在游戏过程中调整移动速度（todo.md 要求）。
-   * 数值越小蛇移动越快；范围被夹在 [MIN_TICK_INTERVAL_MS, MAX_TICK_INTERVAL_MS] 内，
-   * 防止极端值导致游戏不可玩（太快无法反应 / 太慢失去紧张感）。
+   * Adjust snake speed during play (per todo.md).
+   * Lower tick interval = faster snake; clamped to [MIN_TICK_INTERVAL_MS, MAX_TICK_INTERVAL_MS]
+   * to avoid unplayable extremes (too fast to react / too slow to feel tense).
    */
   setSpeed(tickIntervalMs: number): void {
     const clamped = Math.min(
@@ -305,7 +305,7 @@ export class GameEngine {
     return result;
   }
 
-  /** 皮肤不支持手动自定义（todo.md 要求），仅供内部在 start / pattern 切换时调用。 */
+  /** Skins are not manually customizable (per todo.md); internal use on start / pattern switch only. */
   private randomizeSkin(): void {
     const index = Math.floor(Math.random() * AUTO_SKIN_IDS.length);
     const nextSkinId = AUTO_SKIN_IDS[index] ?? "default";
@@ -464,10 +464,10 @@ export class GameEngine {
   }
 
   /**
-   * 渲染（网格中实际可见）长度 = 逻辑长度 / 4（todo.md 要求）。
-   * 例如逻辑长度 128 时，玩家在网格里操控的蛇只有 32 格长。
-   * 这与 8-bit 逻辑长度上限 255 配合：渲染长度上限约 64 格，
-   * 在常见 20~36 格的网格尺寸下仍是合理可玩的体量。
+   * Rendered (visible on grid) length = logical length / 4 (per todo.md).
+   * E.g. logical length 128 → 32 visible segments on the grid.
+   * With 8-bit logical max 255, rendered max ≈ 64 segments —
+   * still reasonable on typical 20~36 cell grids.
    */
   private toRenderedSnakeLength(logicalLength: number): number {
     const boardCap = Math.max(1, this.grid.totalCells - this.foodPool.size - 1);

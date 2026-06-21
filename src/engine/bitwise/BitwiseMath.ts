@@ -1,9 +1,9 @@
 /**
- * 全游戏位运算的底层常量与工具函数。
+ * Low-level bitwise constants and utilities for the whole game.
  *
- * 设计取舍（todo.md 改版后）：蛇的逻辑长度统一收窄为 8-bit（0x00~0xFF），
- * 与 UI 上"8位二进制长度显示"、"2位16进制初始长度/食物数值"完全对齐，
- * 不再有"底层16位、显示层只截8位"这种表里不一致的情况。
+ * Design tradeoff (post todo.md revision): snake logical length is unified to 8-bit (0x00~0xFF),
+ * aligned with UI "8-bit binary length display" and "2-digit hex initial length / food values",
+ * eliminating "16-bit internally, 8-bit on display" inconsistency.
  */
 
 export const BIT_WIDTH = 8;

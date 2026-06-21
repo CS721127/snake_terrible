@@ -615,8 +615,8 @@ export function App(): JSX.Element {
   }, []);
 
   /**
-   * 结算框的"退出"按钮：关闭结算框，进入整蛊流程第一关（占位视频）。
-   * todo.md 要求：这里只有退出按钮，没有"再玩一次"，点击后就走完整整蛊链路。
+   * Run summary "Exit" button: close summary and start exit troll stage 1 (placeholder video).
+   * Per todo.md: exit only, no "play again"; click runs the full troll chain.
    */
   const handleRunSummaryExit = useCallback(() => {
     setRunSummary(INITIAL_RUN_SUMMARY);

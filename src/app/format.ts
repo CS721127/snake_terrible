@@ -9,10 +9,10 @@ export function formatTime(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-/** 结算框里展示"这一局花了多久"，保留到 0.1 秒，比 HUD 倒计时的整秒粒度更精细。 */
+/** Format run duration for the summary modal to 0.1s, finer than HUD countdown whole seconds. */
 export function formatDuration(ms: number): string {
-  // 先按 0.1 秒精度整体四舍五入，再拆分分钟/秒，避免临界值（如 59.96s）
-  // 被 toFixed 单独舍入成 "X:60.0" 这种不进位的显示错误。
+  // Round to 0.1s first, then split minutes/seconds, avoiding edge cases (e.g. 59.96s)
+  // displaying as "X:60.0" without carrying to the next minute.
   const totalTenths = Math.round(Math.max(0, ms) / 100);
   const minutes = Math.floor(totalTenths / 600);
   const remainderTenths = totalTenths % 600;

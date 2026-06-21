@@ -1024,7 +1024,7 @@ input:disabled {
     opacity: 0;
   }
 
-  /* ---------- Run summary modal (todo.md：耗时 + 按键次数结算框) ---------- */
+  /* ---------- Run summary modal (todo.md: elapsed time + key press summary) ---------- */
 
   .run-summary-modal {
     position: fixed;
@@ -1115,7 +1115,7 @@ input:disabled {
     padding: 10px 28px;
   }
 
-  /* ---------- Exit troll overlay (todo.md：退出按钮后的整蛊流程) ---------- */
+  /* ---------- Exit troll overlay (todo.md: troll flow after exit button) ---------- */
 
   .exit-troll {
     position: fixed;

@@ -21,18 +21,18 @@ export function RunSummaryModal({ state, onExit }: RunSummaryModalProps): JSX.El
       <div className="run-summary-modal__panel">
         <p className="run-summary-modal__eyebrow">SESSION_SETTLED</p>
         <h2 className="run-summary-modal__title" id="run-summary-title">
-          恭喜你
+          Congratulations
         </h2>
 
         <div className="run-summary-modal__stats">
           <div className="run-summary-modal__stat">
-            <span className="run-summary-modal__stat-label">浪费的时间</span>
+            <span className="run-summary-modal__stat-label">Time wasted</span>
             <span className="run-summary-modal__stat-value">
               {formatDuration(stats?.elapsedMs ?? 0)}
             </span>
           </div>
           <div className="run-summary-modal__stat">
-            <span className="run-summary-modal__stat-label">按方向键的次数</span>
+            <span className="run-summary-modal__stat-label">Arrow key presses</span>
             <span className="run-summary-modal__stat-value">
               {stats?.arrowKeyPresses ?? 0}
             </span>
@@ -40,8 +40,8 @@ export function RunSummaryModal({ state, onExit }: RunSummaryModalProps): JSX.El
         </div>
 
         <p className="run-summary-modal__desc">
-          恭喜你浪费了 {formatDuration(stats?.elapsedMs ?? 0)} 的时间，
-          按了 {stats?.arrowKeyPresses ?? 0} 次方向键。
+          Congratulations, you wasted {formatDuration(stats?.elapsedMs ?? 0)} and
+          pressed the arrow keys {stats?.arrowKeyPresses ?? 0} times.
         </p>
 
         <button
@@ -50,7 +50,7 @@ export function RunSummaryModal({ state, onExit }: RunSummaryModalProps): JSX.El
           onClick={onExit}
           type="button"
         >
-          退出
+          Exit
         </button>
       </div>
     </div>

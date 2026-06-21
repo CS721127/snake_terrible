@@ -1,12 +1,12 @@
 import type { Cell, GridConfig, GridState } from "./types";
 
 /**
- * Grid：网格世界的几何与边界工具类。
+ * Grid: geometry and boundary utilities for the grid world.
  *
- * 职责边界（重要，避免后续 Sprint 职责混乱）：
- * - 只回答"坐标层面"的问题：是否在界内、是否越界、随机空格在哪。
- * - 不知道蛇在哪、食物在哪——那是 Snake / Food / CollisionDetector 的职责。
- *   Grid 在判断"随机空格子"时需要外部传入"已占用格子集合"，而不是自己去查询 Snake。
+ * Responsibility boundary (important to avoid Sprint scope creep):
+ * - Only answers coordinate questions: in bounds, out of bounds, random empty cell.
+ * - Does not know snake or food positions — Snake / Food / CollisionDetector own that.
+ *   randomEmptyCell takes an external occupied set; Grid does not query Snake.
  */
 export class Grid {
   readonly config: GridConfig;
@@ -14,7 +14,7 @@ export class Grid {
   constructor(config: GridConfig) {
     if (config.columns <= 0 || config.rows <= 0) {
       throw new Error(
-        `Grid 尺寸必须为正整数，收到 columns=${config.columns}, rows=${config.rows}`,
+        `Grid dimensions must be positive integers; got columns=${config.columns}, rows=${config.rows}`,
       );
     }
     this.config = { ...config };
@@ -28,12 +28,12 @@ export class Grid {
     return this.config.rows;
   }
 
-  /** 导出只读状态快照，供需要纯数据（而非类实例）的场景使用，例如网络同步、单测构造。 */
+  /** Export read-only state snapshot for pure-data use cases (network sync, test fixtures). */
   toState(): GridState {
     return { config: { ...this.config } };
   }
 
-  /** 判断某个格子坐标是否落在网格范围内。 */
+  /** Whether a cell coordinate lies within the grid. */
   isInBounds(cell: Cell): boolean {
     return (
       cell.x >= 0 &&
@@ -43,20 +43,20 @@ export class Grid {
     );
   }
 
-  /** 判断某个格子是否越界（isInBounds 的反义，语义更贴合"撞墙"场景，调用处更直观）。 */
+  /** Whether a cell is out of bounds (inverse of isInBounds; clearer for wall-collision call sites). */
   isWallCollision(cell: Cell): boolean {
     return !this.isInBounds(cell);
   }
 
-  /** 网格中格子总数，常用于"是否已被蛇填满全图"等胜利/极限条件判断。 */
+  /** Total cells in the grid; used for "board full" win/limit checks. */
   get totalCells(): number {
     return this.config.columns * this.config.rows;
   }
 
   /**
-   * 在网格内随机挑选一个不在 `occupied` 集合中的空格子。
-   * @param occupied 当前被占用的格子（通常是蛇身）
-   * @returns 随机空格子；若网格已被完全占满则返回 null
+   * Pick a random empty cell not in `occupied`.
+   * @param occupied currently occupied cells (usually snake body)
+   * @returns random empty cell, or null if the grid is full
    */
   randomEmptyCell(occupied: ReadonlySet<string>): Cell | null {
     const freeCells: Cell[] = [];
@@ -73,7 +73,7 @@ export class Grid {
     return freeCells[index] ?? null;
   }
 
-  /** 将格子坐标编码为字符串 key，用于 Set/Map 去重（Sprint 1 起统一使用，避免各处自行拼接格式不一致）。 */
+  /** Encode cell coordinates as a string key for Set/Map dedup (unified format from Sprint 1 onward). */
   static cellKey(cell: Cell): string {
     return `${cell.x},${cell.y}`;
   }

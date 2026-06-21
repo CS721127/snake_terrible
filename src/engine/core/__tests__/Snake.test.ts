@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Snake } from "../Snake";
 
 describe("Snake", () => {
-  it("初始化时按反方向铺出指定长度的身体", () => {
+  it("lays out initial body backward from start for the given length", () => {
     const snake = new Snake({
       start: { x: 5, y: 5 },
       direction: "RIGHT",
@@ -18,7 +18,7 @@ describe("Snake", () => {
     expect(snake.tail).toEqual({ x: 3, y: 5 });
   });
 
-  it("move 后头部按当前方向前进一格，身体整体平移，长度不变", () => {
+  it("after move, head advances one cell in current direction; body shifts; length unchanged", () => {
     const snake = new Snake({
       start: { x: 5, y: 5 },
       direction: "RIGHT",
@@ -34,19 +34,19 @@ describe("Snake", () => {
     ]);
   });
 
-  it("requestDirection 忽略与当前方向相反的转向请求", () => {
+  it("requestDirection ignores turns opposite to current direction", () => {
     const snake = new Snake({
       start: { x: 5, y: 5 },
       direction: "RIGHT",
       initialLength: 3,
     });
-    snake.requestDirection("LEFT"); // 应该被忽略
+    snake.requestDirection("LEFT"); // should be ignored
     snake.move();
     expect(snake.direction).toBe("RIGHT");
     expect(snake.head).toEqual({ x: 6, y: 5 });
   });
 
-  it("requestDirection 接受合法的垂直转向，并在下一次 move 时生效", () => {
+  it("requestDirection accepts valid perpendicular turns applied on next move", () => {
     const snake = new Snake({
       start: { x: 5, y: 5 },
       direction: "RIGHT",
@@ -58,7 +58,7 @@ describe("Snake", () => {
     expect(snake.head).toEqual({ x: 5, y: 4 });
   });
 
-  it("同一帧内多次 requestDirection 只保留最后一次合法请求", () => {
+  it("multiple requestDirection calls in one frame keep only the last valid request", () => {
     const snake = new Snake({
       start: { x: 5, y: 5 },
       direction: "RIGHT",
@@ -70,7 +70,7 @@ describe("Snake", () => {
     expect(snake.direction).toBe("DOWN");
   });
 
-  it("grow(1) 后下一次 move 长度 +1，且不丢弃尾部", () => {
+  it("after grow(1), next move increases length by 1 without dropping tail", () => {
     const snake = new Snake({
       start: { x: 5, y: 5 },
       direction: "RIGHT",
@@ -87,7 +87,7 @@ describe("Snake", () => {
     ]);
   });
 
-  it("grow 多次调用可以累积多段增长", () => {
+  it("multiple grow calls accumulate pending growth", () => {
     const snake = new Snake({
       start: { x: 0, y: 0 },
       direction: "RIGHT",
@@ -99,11 +99,11 @@ describe("Snake", () => {
     snake.move();
     expect(snake.length).toBe(3);
     snake.move();
-    // 第三次 move 时 pendingGrowth 已耗尽，长度不再增加
+    // Third move: pendingGrowth exhausted, length stops growing
     expect(snake.length).toBe(3);
   });
 
-  it("occupies 默认包含头部，可通过 includeHead:false 排除头部", () => {
+  it("occupies includes head by default; includeHead:false excludes head", () => {
     const snake = new Snake({
       start: { x: 5, y: 5 },
       direction: "RIGHT",
@@ -115,7 +115,7 @@ describe("Snake", () => {
     expect(snake.occupies({ x: 99, y: 99 })).toBe(false);
   });
 
-  it("蛇身长度不会因变短逻辑被收缩到 0", () => {
+  it("body length is not shrunk to 0 by shrink logic", () => {
     const snake = new Snake({
       start: { x: 0, y: 0 },
       direction: "RIGHT",

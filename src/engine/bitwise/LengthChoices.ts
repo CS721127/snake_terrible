@@ -8,13 +8,13 @@ import {
 export type LengthChoiceReason = "START" | "PATTERN_MATCH";
 
 /**
- * LengthChoice：一个可选的"位运算表达式"。
+ * LengthChoice: one selectable bitwise expression option.
  *
- * 设计取舍（todo.md）：选项框里只展示 expression（例如 "0xAF & 0x3C"），
- * 不展示运算后的长度/十六进制/是否反转等结果——玩家必须在脑子里算出来，
- * 这是这个游戏"硬核计算机科学"调性的核心体验点。
- * resultLength / reversed 仍然保留在数据结构里，但只用于 GameEngine 内部结算，
- * UI 层（LengthChoiceModal）禁止读取并展示这些字段。
+ * Design tradeoff (todo.md): the choice modal shows only expression (e.g. "0xAF & 0x3C"),
+ * not the computed length/hex/reversal — the player must calculate mentally.
+ * That is core to this game's hardcore CS tone.
+ * resultLength / reversed remain in the data structure for GameEngine settlement only;
+ * the UI layer (LengthChoiceModal) must not read or display those fields.
  */
 export interface LengthChoice {
   readonly id: string;

@@ -1,11 +1,11 @@
 import type { BitwiseFoodOperation } from "@/engine/bitwise/BitwiseMath";
 
 /**
- * FoodLegend：果子的「运算类型 → 视觉表现」唯一数据源。
+ * FoodLegend: single source of truth for food "operation type → visual appearance".
  *
- * 设计取舍：颜色/形状映射只在这里定义一次，CanvasRenderer（画布上的果子）
- * 和 FoodLegendPanel（右侧图鉴侧边栏）都从这里读取，避免两处颜色表各写一份、
- * 后续改配色时漏改其中一处导致"图鉴说的颜色和画面上不一样"。
+ * Design tradeoff: color/shape mapping is defined once here; CanvasRenderer (food on canvas)
+ * and FoodLegendPanel (right-side legend sidebar) both read from here, avoiding duplicate color tables
+ * and mismatches where "legend color ≠ on-screen color" after a partial update.
  */
 export interface FoodLegendEntry {
   readonly operation: BitwiseFoodOperation;
@@ -13,7 +13,7 @@ export interface FoodLegendEntry {
   readonly color: string;
   readonly shapeLabel: string;
   readonly name: string;
-  /** shift 运算符不需要携带 value（todo.md 要求），其余运算都携带一个 2 位 16 进制数值。 */
+  /** Shift operators carry no value (per todo.md); other operations carry a 2-digit hex value. */
   readonly hasValue: boolean;
 }
 

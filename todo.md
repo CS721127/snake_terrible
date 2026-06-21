@@ -1,5 +1,5 @@
-- 皮肤能够处理特殊情况：如果是新南威尔士大学以及其他的一系列大学；此作为一个皮肤；新南威尔士大学永远第一个出现作为head；之后蛇身体以此是墨尔本大学，悉尼大学以及其他的大学；当所有大学都被添加到蛇上了之后后续的长度从蛇头（新南）后开始添加，添加的部分为同样新南的logo
-- 其余皮肤保持不变，但仅保留3个额外皮肤
+- Skins must handle a special case: UNSW and a series of other universities as one skin; UNSW always appears first as the head; the snake body then follows in order with Melbourne University, Sydney University, and other universities; after all universities have been added to the snake, further length is added starting after the head (UNSW), and those segments use the same UNSW logo
+- Other skins stay the same, but keep only 3 additional skins
 
-- 删除全屏功能
-- 添加一个timer，计算游戏开始后多长时间结束了游戏，以及用户按了多少次方向键；并在游戏结束后（复活等失败后）弹出一个结算框，写恭喜你浪费了多少时间以及多少次按键；当用户在此之后点击退出button，跳出一条视频并在左上角显示“不好意思，请点此退出”退出，当用户点击时弹出一张图片，并在左上角显示X退出：当用户鼠标移动即将点击时，x按钮开始移动，始终与鼠标保持一定距离；5秒后弹出一个数学问题（特别复杂非常难理解的问题，但是答案为0），当用户回答正确后退出，写：恭喜你完成游戏。
+- Remove fullscreen feature
+- Add a timer that tracks how long after game start the game ended and how many times the user pressed direction keys; after the game ends (including after revival failures), show a summary modal saying congratulations on wasting X time and Y key presses; when the user then clicks the exit button, play a video and show "Sorry, please click here to exit" in the top-left corner; when the user clicks, show an image and display an X exit button in the top-left corner: when the user's mouse moves to click, the X button starts moving and always stays a certain distance from the mouse; after 5 seconds, show a math problem (a particularly complex, very hard-to-understand question, but the answer is 0); when the user answers correctly, exit and show: congratulations on completing the game.

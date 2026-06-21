@@ -12,9 +12,9 @@ export interface SkinAsset {
 }
 
 /**
- * UniversityAsset：拼接蛇皮肤里单个大学对应的视觉资源。
- * UNSW 永远占据 index 0（蛇头），其余大学依次填充蛇身，
- * 全部用完后从 index 0（UNSW）重新循环。
+ * UniversityAsset: visual asset for one university in the stitched snake skin.
+ * UNSW always occupies index 0 (head); other universities fill the body in order,
+ * then cycle back from index 0 (UNSW) when the roster is exhausted.
  */
 export interface UniversityAsset {
   readonly id: string;
@@ -26,7 +26,7 @@ export interface UniversityAsset {
   };
 }
 
-/** 拼接蛇的大学名单，顺序固定：UNSW 是头，之后依次是身体，用完循环回 UNSW。 */
+/** University roster for the stitched snake skin, fixed order: UNSW is head, then body segments, cycling back to UNSW. */
 export const UNIVERSITY_ROSTER: readonly UniversityAsset[] = [
   university("unsw", "UNSW", "UN", "#FFE45E"),
   university("unimelb", "UMELB", "UM", "#60A5FA"),
@@ -38,7 +38,7 @@ export const UNIVERSITY_ROSTER: readonly UniversityAsset[] = [
   university("western", "WSU", "WS", "#F97316"),
 ];
 
-/** 拼接蛇皮肤的固定 ID，渲染层用它判断是否走"逐段查大学"的特殊路径。 */
+/** Fixed ID for the stitched snake skin; the renderer uses it to choose the per-segment university lookup path. */
 export const UNIVERSITY_SKIN_ID = "university";
 
 export const SKIN_ASSETS: readonly SkinAsset[] = [
@@ -57,8 +57,8 @@ export function getSkinAsset(skinId: string): SkinAsset {
 }
 
 /**
- * 按蛇身段位置（0 = 头）取出拼接蛇皮肤当前段对应的大学。
- * 用完整轮（UNSW..Western）后从 UNSW 重新循环，循环部分用的也是 UNSW 的 logo。
+ * Get the university for the stitched snake skin at a body segment index (0 = head).
+ * After a full cycle (UNSW..Western), loop back to UNSW; loop segments also use UNSW's logo.
  */
 export function getUniversityForSegment(segmentIndex: number): UniversityAsset {
   const roster = UNIVERSITY_ROSTER;
@@ -75,9 +75,9 @@ function university(
   return {
     id,
     label,
-    // 约定路径 /assets/university/{id}/logo.png；文件不存在时 CanvasRenderer 里的
-    // UniversityLogoCache 会加载失败并自动回退到下面的 placeholder（颜色块 + 缩写），
-    // 不会导致渲染报错。
+    // Conventional path /assets/university/{id}/logo.png; if the file is missing, UniversityLogoCache
+    // in CanvasRenderer fails to load and falls back to the placeholder below (color block + initials),
+    // without causing a render error.
     logoSrc: `/assets/university/${id}/logo.png`,
     placeholder: { initials, color },
   };

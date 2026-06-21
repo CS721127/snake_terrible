@@ -7,11 +7,11 @@ interface SpeedControlProps {
 }
 
 /**
- * SpeedControl：游戏进行中可调整蛇移动速度的滑块（todo.md 要求）。
+ * SpeedControl: in-game slider to adjust snake speed (per todo.md).
  *
- * 数值含义是 tick 间隔（毫秒），滑块方向特意反过来——
- * 滑块往右 = "更快"，内部据此换算成更小的 tickIntervalMs，
- * 避免玩家以为"往右滑=数值变大=变快"和实际效果（数值变小才是变快）相反而困惑。
+ * Value is tick interval (ms); slider direction is inverted on purpose —
+ * slider right = "faster", mapped to smaller tickIntervalMs,
+ * so players are not confused by "right = bigger number = faster" when smaller interval means faster.
  */
 export function SpeedControl({
   tickIntervalMs,
@@ -20,7 +20,7 @@ export function SpeedControl({
   onSpeedChange,
   readOnly,
 }: SpeedControlProps): JSX.Element {
-  // 滑块刻度统一用 0~100 的"速度等级"表示，0=最慢(maxMs)，100=最快(minMs)。
+  // Slider uses 0~100 "speed level": 0 = slowest (maxMs), 100 = fastest (minMs).
   const speedLevel = Math.round(
     ((maxMs - tickIntervalMs) / (maxMs - minMs)) * 100,
   );

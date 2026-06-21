@@ -4,7 +4,7 @@ export interface QuizQuestion {
   readonly question: string;
   readonly answer: number;
   readonly timeLimitSeconds: number;
-  /** 可选：图片类题目（例如"图中二进制对应的十进制值是多少"）。文字题该字段省略。 */
+  /** Optional: image-based question (e.g. "What is the decimal value of the binary shown?"). Omitted for text-only questions. */
   readonly imageSrc?: string;
 }
 
@@ -17,7 +17,7 @@ const DIFFICULTY_CONFIG: Record<
   HARD: { timeLimitSeconds: 12, maxOperand: 0xff },
 };
 
-/** 图片题素材池：复用 public/assets 下已有的蛇皮肤贴图作为视觉素材占位。 */
+/** Image question asset pool: reuse existing snake skin textures under public/assets as visual placeholders. */
 const QUIZ_IMAGE_POOL: readonly string[] = [
   "/assets/snake/classic/head.png",
   "/assets/snake/neon/head.png",

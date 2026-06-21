@@ -11,10 +11,10 @@ interface ExitTrollOverlayProps {
   readonly onAdvance: (nextStage: ExitTrollStage) => void;
 }
 
-/** 图片阶段：用户累计"尝试/躲避"满这么久之后才浮现数学题，而不是固定计时器一启动就算。 */
+/** Image stage: the math problem appears only after the user has accumulated this much "trying/evading" time, not from a fixed timer at stage start. */
 const IMAGE_STAGE_ATTEMPT_MS = 5_000;
 
-/** X 按钮与鼠标之间始终保持的最小距离（像素）。 */
+/** Minimum distance (px) the X button always keeps from the mouse. */
 const EVADE_DISTANCE_PX = 90;
 
 export function ExitTrollOverlay({
@@ -40,7 +40,7 @@ export function ExitTrollOverlay({
   );
 }
 
-/** 第一关：占位全屏播放器（假进度条 + 播放按钮），左上角文字是真正的退出入口。 */
+/** Stage 1: placeholder fullscreen player (fake progress bar + play button); the top-left text is the real exit entry. */
 function VideoStage({
   onAdvance,
 }: {
@@ -65,25 +65,30 @@ function VideoStage({
         onClick={() => onAdvance("image")}
         type="button"
       >
-        不好意思，请点此退出
+        Sorry, click here to exit
       </button>
 
       <div className="exit-troll__video-frame">
-        <div className="exit-troll__video-placeholder">
-          {/* 真实视频文件接入位：之后把下面这个占位 div 换成 <video src="..."> 即可。 */}
-          <span className="exit-troll__video-glyph">▶</span>
-          <p className="exit-troll__video-caption">PLACEHOLDER_VIDEO.MP4</p>
+        <div className="exit-troll__video-frame">
+          {/* Real video implementation */}
+          <video 
+            src="/public/assets/video.mp4" 
+            className="exit-troll__video"
+            controls 
+            playsInline
+            autoPlay 
+          />
         </div>
 
         <div className="exit-troll__video-controls">
-          <button
+          {/* <button
             aria-label={playing ? "Pause" : "Play"}
             className="exit-troll__video-play"
             onClick={() => setPlaying((prev) => !prev)}
             type="button"
           >
             {playing ? "❙❙" : "▶"}
-          </button>
+          </button> */}
 
           <div
             aria-valuemax={100}
@@ -114,7 +119,7 @@ function formatFakeTime(progressPct: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")} / 2:17`;
 }
 
-/** 第二关：一张图片 + 一个始终躲着鼠标的 X 退出按钮；累计尝试满 5 秒才进入下一关。 */
+/** Stage 2: an image plus an X exit button that always evades the mouse; advance after 5 seconds of accumulated attempts. */
 function ImageStage({
   onAdvance,
 }: {
@@ -127,7 +132,7 @@ function ImageStage({
   const lastTickRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
 
-  // 初始把按钮放在图片框右上角附近，而不是 (0,0)。
+  // Initially place the button near the top-right of the image frame, not at (0,0).
   useEffect(() => {
     const frame = frameRef.current;
     if (!frame) return;
@@ -140,7 +145,7 @@ function ImageStage({
     const button = buttonRef.current;
     if (!frame || !button) return;
 
-    // 只要用户在这一关里动鼠标，就视为"在尝试"，开始/继续累计时长。
+    // Any mouse movement in this stage counts as "trying" and starts/continues the accumulated timer.
     lastTickRef.current ??= performance.now();
 
     const frameRect = frame.getBoundingClientRect();
@@ -157,7 +162,7 @@ function ImageStage({
 
     if (distance >= EVADE_DISTANCE_PX) return;
 
-    // 沿着"鼠标→按钮"的方向继续推开按钮，并夹在图片框范围内。
+    // Push the button further along the mouse→button direction and clamp it inside the image frame.
     const angle = distance === 0
       ? Math.random() * Math.PI * 2
       : Math.atan2(dy, dx);
@@ -179,9 +184,9 @@ function ImageStage({
     lastTickRef.current = null;
   }, []);
 
-  // 累计"尝试/躲避中"的时长；满 5 秒（todo.md 要求）后进入数学题关。
-  // 另外加一道兜底：即使完全没有指针事件（极端设备），25 秒挂钟时间后也会强制进入下一关，
-  // 避免用户被卡死在这一关出不去。
+  // Accumulate time spent trying/evading; after 5 seconds (todo.md), advance to the math stage.
+  // Fallback: even with no pointer events (edge-case devices), force advance after 25 seconds
+  // so the user cannot get stuck on this stage.
   useEffect(() => {
     const mountedAtMs = performance.now();
     const HARD_FALLBACK_MS = 25_000;
@@ -215,27 +220,31 @@ function ImageStage({
         onPointerMove={handlePointerMove}
         ref={frameRef}
       >
-        <div className="exit-troll__image-placeholder">
-          {/* 真实图片素材接入位：之后把这块占位换成 <img src="..."> 即可。 */}
-          <span className="exit-troll__image-glyph">🖼</span>
-          <p className="exit-troll__image-caption">PLACEHOLDER_IMAGE</p>
+        <div className="exit-troll__image-container">
+          {/* Real image implementation */}
+          <img 
+            src="/public/assets/meme.webp" 
+            alt="Exit Troll Meme" 
+            className="exit-troll__image" 
+            loading="lazy" 
+          />
         </div>
 
         <button
-          aria-label="退出"
+          aria-label="Exit"
           className="exit-troll__evade-button"
           ref={buttonRef}
           style={{ left: `${buttonPos.x}px`, top: `${buttonPos.y}px` }}
           type="button"
         >
-          X 退出
+          X Exit
         </button>
       </div>
     </div>
   );
 }
 
-/** 第三关：看起来特别复杂、实际答案恒为 0 的数学题；答对才能真正退出。 */
+/** Stage 3: a math problem that looks very complex but always has answer 0; only a correct answer exits. */
 function MathStage({
   onAdvance,
 }: {
@@ -258,7 +267,7 @@ function MathStage({
       onAdvance("done");
       return;
     }
-    setFeedback("不对，再想想（提示：答案其实很简单）。");
+    setFeedback("Wrong, try again (hint: the answer is very simple).");
     setProblem(generateExitTrollMathProblem());
     setAnswer("");
     setShowHint(false);
@@ -272,7 +281,7 @@ function MathStage({
 
         <div className="exit-troll__math-input-row">
           <input
-            aria-label="答案"
+            aria-label="Answer"
             autoComplete="off"
             className="exit-troll__math-input"
             onChange={(event) => {
@@ -292,7 +301,7 @@ function MathStage({
             onClick={handleSubmit}
             type="button"
           >
-            提交
+            Submit
           </button>
         </div>
 
@@ -301,7 +310,7 @@ function MathStage({
           onClick={() => setShowHint((prev) => !prev)}
           type="button"
         >
-          {showHint ? "隐藏提示" : "需要提示？"}
+          {showHint ? "Hide hint" : "Need a hint?"}
         </button>
 
         {showHint ? <p className="exit-troll__math-hint">{problem.hint}</p> : null}
@@ -317,12 +326,12 @@ function MathStage({
   );
 }
 
-/** 最终阶段：答对数学题后展示的真正退出确认。 */
+/** Final stage: the real exit confirmation shown after answering the math problem correctly. */
 function DoneStage(): JSX.Element {
   return (
     <div className="exit-troll__stage exit-troll__stage--done">
       <div className="exit-troll__done-panel">
-        <p className="exit-troll__done-title">恭喜你完成游戏</p>
+        <p className="exit-troll__done-title">Congratulations, you completed the game</p>
       </div>
     </div>
   );

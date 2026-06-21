@@ -8,9 +8,9 @@ export interface LengthPatternGoal {
   readonly description: string;
   readonly sequence?: string;
   readonly oneCount?: number;
-  /** BIT_SET 专用：从低位数起第几位（0-indexed）。 */
+  /** BIT_SET only: bit index from the LSB (0-indexed). */
   readonly bitIndex?: number;
-  /** BIT_SET 专用：要求该位被设为 0 还是 1。 */
+  /** BIT_SET only: required value 0 or 1 for that bit. */
   readonly bitValue?: 0 | 1;
 }
 

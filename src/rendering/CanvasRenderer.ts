@@ -11,14 +11,14 @@ import {
 import type { SkinAsset, UniversityAsset } from "../engine/skins";
 
 /**
- * SkinImageCache：管理图片皮肤的 HTMLImageElement 缓存。
- * 每个 skinId 独立缓存 head/body 两张图，加载失败时自动回退到纯色渲染。
+ * SkinImageCache: manages HTMLImageElement cache for image-based skins.
+ * Each skinId caches head/body images independently; on load failure, falls back to solid-color rendering.
  */
 class SkinImageCache {
   private cache = new Map<string, { head: HTMLImageElement; body: HTMLImageElement }>();
   private loading = new Set<string>();
 
-  /** 触发加载（非阻塞），加载完成后下一帧自动使用。 */
+  /** Trigger load (non-blocking); next frame uses the image once loaded. */
   preload(skinId: string): void {
     if (this.cache.has(skinId) || this.loading.has(skinId)) return;
     const asset = getSkinAsset(skinId);
@@ -40,7 +40,7 @@ class SkinImageCache {
 
     head.onload = () => { headOk = true; tryCommit(); };
     body.onload = () => { bodyOk = true; tryCommit(); };
-    // 加载失败时直接放弃，回退纯色
+    // On load failure, give up and fall back to solid color
     head.onerror = () => this.loading.delete(skinId);
     body.onerror = () => this.loading.delete(skinId);
 
@@ -54,10 +54,10 @@ class SkinImageCache {
 }
 
 /**
- * UniversityLogoCache：拼接蛇皮肤专用的逐校 logo 缓存。
- * 与 SkinImageCache 分开是因为拼接蛇不是"一个皮肤两张图"，
- * 而是"一个皮肤、每段身体可能对应不同大学的 logo"，按大学 id 缓存即可，
- * 任意一所大学的 logo 缺失/加载失败时该段自动回退到颜色块 + 缩写。
+ * UniversityLogoCache: per-university logo cache for the stitched snake skin.
+ * Separate from SkinImageCache because the stitched snake is not "one skin, two images",
+ * but "one skin where each body segment may use a different university logo"; cache by university id.
+ * If any university logo is missing or fails to load, that segment falls back to color block + initials.
  */
 class UniversityLogoCache {
   private cache = new Map<string, HTMLImageElement>();
@@ -77,7 +77,7 @@ class UniversityLogoCache {
       this.loading.delete(id);
     };
     img.onerror = () => {
-      // 该大学 logo 文件还没准备好（todo.md 占位阶段），记下来避免重复尝试加载。
+      // University logo file not ready yet (todo.md placeholder phase); record failure to avoid retrying.
       this.loading.delete(id);
       this.failed.add(id);
     };
@@ -90,13 +90,13 @@ class UniversityLogoCache {
 }
 
 /**
- * CanvasRenderer：Sprint 1.5 单机模式渲染器。
+ * CanvasRenderer: Sprint 1.5 single-player renderer.
  *
- * 新增：
- * - 皮肤系统（default 纯色 / 图片皮肤，通过 SkinImageCache 异步加载）
- * - 拼接蛇皮肤（university）：逐段按 UNSW→Melbourne→Sydney→...→Western→UNSW 循环取 logo
- * - 多食物池渲染（foods 数组）
- * - 蛇头方向旋转（图片皮肤时自动旋转头部图片）
+ * Additions:
+ * - Skin system (default solid color / image skins, loaded asynchronously via SkinImageCache)
+ * - Stitched snake skin (university): per-segment logos in UNSW→Melbourne→Sydney→...→Western→UNSW cycle
+ * - Multi-food pool rendering (foods array)
+ * - Head direction rotation (auto-rotate head image for image skins)
  */
 export class CanvasRenderer extends Renderer {
   private lastResizedKey: string | null = null;
@@ -128,7 +128,7 @@ export class CanvasRenderer extends Renderer {
       return;
     }
 
-    // 预加载图片皮肤（如果还没加载）
+    // Preload image skin if not loaded yet
     if (skinAsset.headSrc && skinAsset.bodySrc) {
       this.skinCache.preload(skinId);
     }
@@ -139,13 +139,13 @@ export class CanvasRenderer extends Renderer {
     this.drawSnake(snakeBody, snakeDirection, cellSizePx, images, skinAsset);
   }
 
-  /** 棋盘格背景，明暗交替的暗绿色块，模拟"内存页"的视觉质感。 */
+  /** Checkerboard background with alternating dark green cells, evoking a "memory page" look. */
   private drawGridBackground(
     grid: { columns: number; rows: number },
     cellSizePx: number,
   ): void {
     const { ctx } = this;
-    // 读取 CSS 变量，支持 light/dark 主题
+    // Read CSS variables to support light/dark themes
     const colorA = getComputedStyle(document.documentElement)
       .getPropertyValue("--color-grid-a").trim() || "#0D1A10";
     const colorB = getComputedStyle(document.documentElement)
@@ -176,14 +176,14 @@ export class CanvasRenderer extends Renderer {
       const isHead = i === 0;
 
       if (images) {
-        // 图片皮肤模式
+        // Image skin mode
         const img = isHead ? images.head : images.body;
         const x = segment.x * cellSizePx + padding;
         const y = segment.y * cellSizePx + padding;
         const size = cellSizePx - padding * 2;
 
         if (isHead) {
-          // 旋转头部图片以匹配蛇的方向
+          // Rotate head image to match snake direction
           ctx.save();
           ctx.translate(x + size / 2, y + size / 2);
           ctx.rotate(this.directionToAngle(direction));
@@ -193,7 +193,7 @@ export class CanvasRenderer extends Renderer {
           ctx.drawImage(img, x, y, size, size);
         }
       } else {
-        // 默认纯色模式
+        // Default solid-color mode
         ctx.fillStyle = isHead
           ? skinAsset.placeholder.headColor
           : skinAsset.placeholder.bodyColor;
@@ -204,7 +204,7 @@ export class CanvasRenderer extends Renderer {
           cellSizePx - padding * 2,
         );
 
-        // 头部额外画一个细的高亮描边，模拟"当前光标"的强调感。
+        // Extra thin highlight stroke on the head, like a "current cursor" emphasis.
         if (isHead) {
           ctx.strokeStyle = "#D6FFE6";
           ctx.lineWidth = Math.max(1, cellSizePx * 0.04);
@@ -231,9 +231,9 @@ export class CanvasRenderer extends Renderer {
   }
 
   /**
-   * 拼接蛇皮肤的逐段绘制：每一段身体根据它在蛇身上的位置（index）
-   * 去查对应的大学（getUniversityForSegment），而不是整条蛇共用一张 head/body 图。
-   * index 0（蛇头）永远是 UNSW；用完一整轮大学后从 UNSW 重新循环。
+   * Per-segment drawing for the stitched snake skin: each body segment looks up its university
+   * by position (getUniversityForSegment), instead of one head/body image for the whole snake.
+   * Index 0 (head) is always UNSW; after a full university cycle, loop back to UNSW.
    */
   private drawUniversitySnake(
     body: readonly { x: number; y: number }[],
@@ -269,7 +269,7 @@ export class CanvasRenderer extends Renderer {
         continue;
       }
 
-      // Logo 还没准备好时的占位：该大学专属颜色块 + 缩写，行为与其它图片皮肤的回退逻辑一致。
+      // Placeholder when logo is not ready: university color block + initials, same fallback as other image skins.
       ctx.fillStyle = university.placeholder.color;
       ctx.fillRect(x, y, size, size);
 
@@ -322,7 +322,7 @@ export class CanvasRenderer extends Renderer {
     return `${food.operation}${(food.value ?? 0).toString(16).toUpperCase().padStart(2, "0")}`;
   }
 
-  /** 将蛇的移动方向转换为头部图片的旋转角度（弧度），以 RIGHT 为 0° 基准。 */
+  /** Convert snake movement direction to head image rotation angle (radians), with RIGHT as 0°. */
   private directionToAngle(direction: Direction): number {
     switch (direction) {
       case "RIGHT": return 0;

@@ -1,25 +1,26 @@
 /**
- * TickLoop：固定时间步的游戏主循环。
+ * TickLoop: fixed-timestep game main loop.
  *
- * 核心问题：浏览器的 requestAnimationFrame 回调间隔会随显示器刷新率、
- * 系统负载浮动（60Hz 约 16.7ms 一帧，120Hz 约 8.3ms 一帧，卡顿时可能跳到 30ms+）。
- * 如果直接在每个 rAF 回调里"挪一格"，蛇的移动速度会随着设备/负载不同而不同，手感不稳定。
+ * Core problem: browser requestAnimationFrame callback intervals vary with display refresh rate
+ * and system load (60Hz ≈ 16.7ms/frame, 120Hz ≈ 8.3ms/frame, stutters can jump to 30ms+).
+ * Moving the snake "one cell" directly in each rAF callback makes speed depend on device/load,
+ * which feels inconsistent.
  *
- * 解决方式（固定时间步 + 累积器模式）：
- * - 每次 rAF 回调累积经过的真实时间 delta；
- * - 当累积时间 >= tickIntervalMs 时，执行一次 onTick（逻辑更新），并消耗掉一个 tick 的时间；
- * - 如果掉帧严重导致累积时间远超一个 tick，最多连续补帧 MAX_CATCH_UP_TICKS 次，
- *   避免长时间切到后台标签页再切回来时，蛇"瞬间疯狂移动"补偿掉所有丢失的时间。
- * - 渲染（onRender）则每个 rAF 都执行，保证视觉流畅，不受 tick 频率限制——
- *   这一点为后续如果想做"插值平滑动画"留好了接口，Sprint 1 阶段 onRender 里直接画当前逻辑状态即可。
+ * Solution (fixed timestep + accumulator pattern):
+ * - Each rAF callback accumulates real elapsed time delta;
+ * - When accumulated time >= tickIntervalMs, run onTick (logic update) and consume one tick's worth of time;
+ * - If frames drop badly and accumulated time far exceeds one tick, catch up at most MAX_CATCH_UP_TICKS times,
+ *   avoiding the snake "teleporting" through all missed time when returning from a long background tab.
+ * - Rendering (onRender) runs every rAF for smooth visuals, decoupled from tick rate —
+ *   this leaves room for interpolated animation later; in Sprint 1, onRender draws the current logic state directly.
  */
 
 export interface TickLoopOptions {
-  /** 每个逻辑 tick 的间隔（毫秒），贪吃蛇典型值 100~200ms，需求给出 150ms。 */
+  /** Interval per logic tick (ms); typical snake values 100~200ms, requirement specifies 150ms. */
   tickIntervalMs: number;
-  /** 每个逻辑 tick 触发一次，用于驱动游戏逻辑（移动、碰撞检测等）。 */
+  /** Fires once per logic tick to drive game logic (movement, collision detection, etc.). */
   onTick: () => void;
-  /** 每个动画帧触发一次，用于渲染，与逻辑 tick 频率解耦。 */
+  /** Fires every animation frame for rendering, decoupled from logic tick frequency. */
   onRender: (frameDeltaMs: number) => void;
 }
 
@@ -37,7 +38,7 @@ export class TickLoop {
 
   constructor(options: TickLoopOptions) {
     if (options.tickIntervalMs <= 0) {
-      throw new Error("tickIntervalMs 必须为正数");
+      throw new Error("tickIntervalMs must be a positive number");
     }
     this.tickIntervalMs = options.tickIntervalMs;
     this.onTick = options.onTick;
@@ -53,9 +54,9 @@ export class TickLoop {
   }
 
   /**
-   * 运行时调整 tick 间隔（玩家在游戏中调整移动速度，todo.md 要求）。
-   * 不打断当前 rAF 循环，下一次 frame() 判定 accumulator 时立即生效；
-   * 同时清空 accumulator，避免切换速度瞬间因为旧的累积值触发"瞬间多步"的跳变。
+   * Adjust tick interval at runtime (player changes snake speed in-game, per todo.md).
+   * Does not interrupt the current rAF loop; takes effect on the next frame() accumulator check;
+   * also clears the accumulator to avoid a speed-change burst of "instant multi-step" from old accumulated time.
    */
   setTickIntervalMs(nextIntervalMs: number): void {
     if (nextIntervalMs <= 0) return;
@@ -79,7 +80,7 @@ export class TickLoop {
     }
   }
 
-  /** rAF 回调，箭头函数绑定 this，避免每次 requestAnimationFrame 都要手动 bind。 */
+  /** rAF callback; arrow function binds this to avoid manual bind on every requestAnimationFrame. */
   private frame = (timestamp: number): void => {
     if (!this.running) return;
 
@@ -99,8 +100,8 @@ export class TickLoop {
       this.accumulatorMs -= this.tickIntervalMs;
       catchUpTicks++;
     }
-    // 如果补帧次数触顶（例如长时间挂起后台），直接清空累积器，
-    // 避免恢复焦点的瞬间又触发一长串迟到的 tick。
+    // If catch-up hits the cap (e.g. long background suspend), clear the accumulator
+    // to avoid another burst of overdue ticks on focus restore.
     if (catchUpTicks >= MAX_CATCH_UP_TICKS) {
       this.accumulatorMs = 0;
     }
