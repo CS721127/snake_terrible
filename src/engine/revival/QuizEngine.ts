@@ -17,10 +17,11 @@ const DIFFICULTY_CONFIG: Record<
   HARD: { timeLimitSeconds: 12, maxOperand: 0xff },
 };
 
-/** Image question asset pool: reuse existing snake skin textures under public/assets as visual placeholders. */
+/** Image question asset pool: reuse existing university logos under public/assets as visual placeholders. */
 const QUIZ_IMAGE_POOL: readonly string[] = [
-  "/assets/snake/classic/head.png",
-  "/assets/snake/neon/head.png",
+  "/assets/university/unsw/logo.png",
+  "/assets/university/unimelb/logo.png",
+  "/assets/university/usyd/logo.png",
 ];
 
 export class QuizEngine {

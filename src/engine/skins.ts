@@ -31,7 +31,7 @@ export const UNIVERSITY_ROSTER: readonly UniversityAsset[] = [
   university("unsw", "UNSW", "UN", "#FFE45E"),
   university("unimelb", "UMELB", "UM", "#60A5FA"),
   university("usyd", "USYD", "SY", "#EF4444"),
-  university("anu", "ANU", "AN", "#93C5FD"),
+  university("anu", "ANU", "AN", "#93C5FD", "jpg"),
   university("monash", "MONASH", "MO", "#38BDF8"),
   university("macquarie", "MACQ", "MQ", "#FACC15"),
   university("victoria", "VU", "VU", "#FB7185"),
@@ -44,8 +44,6 @@ export const UNIVERSITY_SKIN_ID = "university";
 export const SKIN_ASSETS: readonly SkinAsset[] = [
   skin("default", "DEFAULT", "01", "#9BFFC2", "#39FF6A"),
   skin(UNIVERSITY_SKIN_ID, "UNI", "UN", UNIVERSITY_ROSTER[0]!.placeholder.color, "#1E3A8A"),
-  skin("classic", "CLASSIC", "CL", "#FDE68A", "#F59E0B", "png"),
-  skin("neon", "NEON", "NE", "#67E8F9", "#8B5CF6", "png"),
 ];
 
 export const AUTO_SKIN_IDS = SKIN_ASSETS
@@ -71,14 +69,15 @@ function university(
   label: string,
   initials: string,
   color: string,
+  extension: string = "png",
 ): UniversityAsset {
   return {
     id,
     label,
-    // Conventional path /assets/university/{id}/logo.png; if the file is missing, UniversityLogoCache
+    // Conventional path /assets/university/{id}/logo.{extension}; if the file is missing, UniversityLogoCache
     // in CanvasRenderer fails to load and falls back to the placeholder below (color block + initials),
     // without causing a render error.
-    logoSrc: `/assets/university/${id}/logo.png`,
+    logoSrc: `/assets/university/${id}/logo.${extension}`,
     placeholder: { initials, color },
   };
 }
