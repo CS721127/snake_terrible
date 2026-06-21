@@ -93,8 +93,12 @@ input:disabled {
     @apply min-h-screen px-4 py-4;
   }
 
+  .app-shell__layout {
+    @apply mx-auto flex w-full max-w-[1040px] flex-col items-start gap-4 lg:flex-row;
+  }
+
   .app-shell__stack {
-    @apply mx-auto flex w-full max-w-[760px] flex-col gap-4;
+    @apply flex w-full max-w-[760px] flex-col gap-4;
   }
 
   .hud {
@@ -170,6 +174,18 @@ input:disabled {
   .hud__stat--state .hud__stat-value {
     color: var(--color-text-muted);
     font-size: 0.72rem;
+  }
+
+  .hud__stat--bin-primary {
+    max-width: 220px;
+  }
+
+  .hud__stat--bin-primary .hud__stat-value {
+    color: var(--color-phosphor-bright);
+    font-size: 1.15rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-shadow: 0 0 12px rgba(157, 255, 196, 0.35);
   }
 
   .hud__revivals {
@@ -498,6 +514,106 @@ input:disabled {
     color: var(--color-phosphor);
   }
 
+  .food-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    max-width: 220px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-panel);
+    background: var(--color-panel);
+    box-shadow: var(--shadow-glow);
+    padding: 10px 12px;
+    transition: var(--transition-theme);
+  }
+
+  .food-legend__title {
+    color: var(--color-text-muted);
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+  }
+
+  .food-legend__list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .food-legend__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .food-legend__swatch {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    border: 1.5px solid currentColor;
+    border-radius: 50%;
+    font-size: 0.7rem;
+    background: var(--color-skin-card-bg);
+  }
+
+  .food-legend__info {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+  }
+
+  .food-legend__op {
+    color: var(--color-text-primary);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+
+  .food-legend__symbol {
+    color: var(--color-phosphor);
+    font-size: 0.66rem;
+  }
+
+  .food-legend__value-hint {
+    color: var(--color-text-muted);
+    font-size: 0.58rem;
+  }
+
+  .speed-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-panel);
+    background: var(--color-panel);
+    padding: 8px 12px;
+    transition: var(--transition-theme);
+  }
+
+  .speed-control__label {
+    color: var(--color-text-muted);
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    flex-shrink: 0;
+  }
+
+  .speed-control__slider {
+    flex: 1;
+    accent-color: var(--color-phosphor);
+  }
+
+  .speed-control__value {
+    color: var(--color-phosphor-bright);
+    font-size: 0.66rem;
+    flex-shrink: 0;
+    min-width: 64px;
+    text-align: right;
+  }
+
   .stage {
     display: flex;
     width: 100%;
@@ -516,6 +632,25 @@ input:disabled {
     box-shadow: var(--shadow-panel), 0 0 0 1px rgba(56, 242, 110, 0.04);
     line-height: 0;
     transition: var(--transition-theme);
+  }
+
+  .stage__board:fullscreen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100vw;
+    height: 100vh;
+    max-width: none;
+    border: none;
+    border-radius: 0;
+    background: var(--color-bg);
+  }
+
+  .stage__board:fullscreen #game-canvas {
+    max-width: 96vw;
+    max-height: 96vh;
+    width: auto;
+    height: auto;
   }
 
   #game-canvas {
@@ -717,6 +852,24 @@ input:disabled {
     padding: 8px 12px;
   }
 
+  .quiz-modal__skip {
+    margin-top: 4px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-panel);
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    font-size: 0.66rem;
+    letter-spacing: 0.08em;
+    padding: 6px 10px;
+    transition: var(--transition-theme);
+  }
+
+  .quiz-modal__skip:hover {
+    color: var(--color-danger);
+    border-color: var(--color-danger);
+  }
+
   .quiz-modal__feedback {
     min-height: 1.4em;
     margin: 0;
@@ -804,10 +957,11 @@ input:disabled {
 
   .length-choice {
     display: flex;
-    min-height: 112px;
+    min-height: 64px;
     min-width: 0;
     flex-direction: column;
-    justify-content: space-between;
+    align-items: center;
+    justify-content: center;
     gap: 8px;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
@@ -815,7 +969,7 @@ input:disabled {
     color: var(--color-text-primary);
     cursor: pointer;
     padding: 10px;
-    text-align: left;
+    text-align: center;
     transition: border-color 0.15s, transform 0.08s, background 0.15s;
   }
 
@@ -825,16 +979,9 @@ input:disabled {
     transform: translateY(-1px);
   }
 
-  .length-choice__expr,
-  .length-choice__hex {
-    color: var(--color-text-muted);
-    font-size: 0.62rem;
-    overflow-wrap: anywhere;
-  }
-
-  .length-choice__result {
+  .length-choice__expr {
     color: var(--color-phosphor);
-    font-size: 0.82rem;
+    font-size: 0.92rem;
     font-weight: 800;
     overflow-wrap: anywhere;
   }
@@ -961,7 +1108,7 @@ input:disabled {
   }
 
   .length-choice {
-    min-height: 86px;
+    min-height: 52px;
   }
 
   .bonus-modal__input-row {

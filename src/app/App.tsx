@@ -15,12 +15,13 @@ import type {
 } from "@/app/types";
 import { BonusChallengeModal } from "@/components/BonusChallengeModal";
 import { DifficultyToolbar } from "@/components/DifficultyToolbar";
+import { FoodLegendPanel } from "@/components/FoodLegendPanel";
 import { GameStage } from "@/components/GameStage";
 import { Hud } from "@/components/Hud";
 import { LengthChoiceModal } from "@/components/LengthChoiceModal";
 import { QuizModal } from "@/components/QuizModal";
 import { RealtimePanel } from "@/components/RealtimePanel";
-import { SkinSelector } from "@/components/SkinSelector";
+import { SpeedControl } from "@/components/SpeedControl";
 import { GameEngine } from "@/engine/GameEngine";
 import type { DifficultyLevel } from "@/engine/GameEngine";
 import { generateLengthChoices } from "@/engine/bitwise/LengthChoices";
@@ -101,6 +102,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 
 export function App(): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const stageBoardRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<CanvasRenderer | null>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const latestSnapshotRef = useRef<RenderSnapshot | null>(null);
@@ -118,6 +120,8 @@ export function App(): JSX.Element {
     skinIdRef.current = next;
     setSkinIdState(next);
   }, []);
+
+  const [tickIntervalMs, setTickIntervalMsState] = useState(150);
 
   const [theme, setTheme] = useState<ThemeMode>("dark");
   const [hud, setHudState] = useState<HudState>(INITIAL_HUD);
@@ -288,7 +292,6 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     skinIdRef.current = skinId;
-    engineRef.current?.setSkin(skinId);
   }, [skinId]);
 
   useEffect(() => {
@@ -406,11 +409,13 @@ export function App(): JSX.Element {
         });
       },
       onSkinChange: setSkinId,
+      onSpeedChange: setTickIntervalMsState,
     });
 
     engineRef.current = engine;
     engine.attachInput();
     setHudPatch(INITIAL_HUD);
+    setTickIntervalMsState(engine.getTickIntervalMs());
     renderEmptyBoard();
 
     return () => {
@@ -451,6 +456,21 @@ export function App(): JSX.Element {
     };
   }, [connectedRoom, publishInput, roomForm.role, sessionId, status]);
 
+  const handleSpeedChange = useCallback((nextTickIntervalMs: number) => {
+    engineRef.current?.setSpeed(nextTickIntervalMs);
+  }, []);
+
+  const requestStageFullscreen = useCallback(() => {
+    const node = stageBoardRef.current;
+    if (!node || document.fullscreenElement) return;
+    // Fullscreen API 必须在用户手势的同一调用栈内触发，因此放在 handleStart
+    // （START 按钮点击 / 空格键事件处理函数）内部同步调用，而不是 useEffect 里。
+    node.requestFullscreen?.().catch(() => {
+      // 某些浏览器/嵌入式 webview 会拒绝全屏请求（例如 iframe 未设置 allow="fullscreen"），
+      // 这里静默失败，不阻塞游戏正常开始。
+    });
+  }, []);
+
   const handleStart = useCallback(() => {
     if (roleRef.current === "client") {
       if (status !== "connected" || !connectedRoom) return;
@@ -464,12 +484,13 @@ export function App(): JSX.Element {
       return;
     }
 
+    requestStageFullscreen();
     setLengthChoices({
       visible: true,
       reason: "START",
       choices: generateLengthChoices(),
     });
-  }, [connectedRoom, publishCommand, sessionId, status]);
+  }, [connectedRoom, publishCommand, requestStageFullscreen, sessionId, status]);
 
   const handleLengthChoice = useCallback(
     (choice: LengthChoice) => {
@@ -552,6 +573,16 @@ export function App(): JSX.Element {
     }
   }, [finishQuiz, quiz.answerText]);
 
+  const handleQuizSkip = useCallback(() => {
+    if (!currentQuizRef.current) return;
+    setQuiz((prev) => ({
+      ...prev,
+      feedback: "Skipped.",
+      feedbackOk: false,
+    }));
+    finishQuiz(false, 300);
+  }, [finishQuiz]);
+
   const handleBonusAnswerChange = useCallback((answerText: string) => {
     setBonus((prev) => ({
       ...prev,
@@ -597,49 +628,57 @@ export function App(): JSX.Element {
 
   return (
     <div className="app-shell">
-      <div className="app-shell__stack">
-        <Hud
-          hud={hud}
-          onToggleTheme={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
-          theme={theme}
-        />
+      <div className="app-shell__layout">
+        <div className="app-shell__stack">
+          <Hud
+            hud={hud}
+            onToggleTheme={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+            theme={theme}
+          />
 
-        <RealtimePanel
-          connectedRole={connectedRole}
-          connectedRoom={connectedRoom}
-          error={error}
-          form={roomForm}
-          isConfigured={isConfigured}
-          onConnect={handleConnect}
-          onDisconnect={() => void disconnect()}
-          onRoleChange={handleRoleChange}
-          onRoomCodeChange={handleRoomCodeChange}
-          status={status}
-        />
+          <RealtimePanel
+            connectedRole={connectedRole}
+            connectedRoom={connectedRoom}
+            error={error}
+            form={roomForm}
+            isConfigured={isConfigured}
+            onConnect={handleConnect}
+            onDisconnect={() => void disconnect()}
+            onRoleChange={handleRoleChange}
+            onRoomCodeChange={handleRoomCodeChange}
+            status={status}
+          />
 
-        <DifficultyToolbar
-          difficulty={difficulty}
-          onDifficultyChange={setDifficulty}
-          readOnly={readOnlyByHost}
-        />
+          <DifficultyToolbar
+            difficulty={difficulty}
+            onDifficultyChange={setDifficulty}
+            readOnly={readOnlyByHost}
+          />
 
-        <SkinSelector
-          onSkinChange={setSkinId}
-          readOnly={readOnlyByHost}
-          skinId={skinId}
-        />
+          <SpeedControl
+            maxMs={engineRef.current?.getSpeedRange().maxMs ?? 320}
+            minMs={engineRef.current?.getSpeedRange().minMs ?? 60}
+            onSpeedChange={handleSpeedChange}
+            readOnly={readOnlyByHost || roomForm.role === "client"}
+            tickIntervalMs={tickIntervalMs}
+          />
 
-        <GameStage
-          canvasRef={canvasRef}
-          difficulty={difficulty}
-          onStart={handleStart}
-          phase={hud.phase}
-          role={roomForm.role}
-        />
+          <GameStage
+            canvasRef={canvasRef}
+            difficulty={difficulty}
+            onStart={handleStart}
+            phase={hud.phase}
+            role={roomForm.role}
+            stageBoardRef={stageBoardRef}
+          />
+        </div>
+
+        <FoodLegendPanel />
       </div>
 
       <QuizModal
         onAnswerChange={handleQuizAnswerChange}
+        onSkip={handleQuizSkip}
         onSubmit={handleQuizSubmit}
         state={quiz}
       />

@@ -2,6 +2,7 @@ import { Renderer } from "./Renderer";
 import type { RenderSnapshot } from "./Renderer";
 import type { Direction } from "../engine/core/types";
 import type { BitwiseFoodSnapshot } from "../engine/bitwise/BitwiseFood";
+import { foodColorByTone } from "../engine/bitwise/FoodLegend";
 import { getSkinAsset } from "../engine/skins";
 import type { SkinAsset } from "../engine/skins";
 
@@ -188,7 +189,7 @@ export class CanvasRenderer extends Renderer {
     const centerY = food.y * cellSizePx + cellSizePx / 2;
     const radius = cellSizePx * 0.32;
 
-    ctx.fillStyle = this.foodColor(food.tone);
+    ctx.fillStyle = foodColorByTone(food.tone);
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
     ctx.fill();
@@ -211,18 +212,6 @@ export class CanvasRenderer extends Renderer {
     if (food.operation === "<<") return `L${food.value ?? 0}`;
     if (food.operation === ">>") return `R${food.value ?? 0}`;
     return `${food.operation}${(food.value ?? 0).toString(16).toUpperCase().padStart(2, "0")}`;
-  }
-
-  private foodColor(tone: string): string {
-    switch (tone) {
-      case "and": return "#67E8F9";
-      case "or": return "#FBBF24";
-      case "xor": return "#A78BFA";
-      case "shift-left": return "#34D399";
-      case "shift-right": return "#FB7185";
-      case "not": return "#F8FAFC";
-      default: return "#FF4D6A";
-    }
   }
 
   /** 将蛇的移动方向转换为头部图片的旋转角度（弧度），以 RIGHT 为 0° 基准。 */

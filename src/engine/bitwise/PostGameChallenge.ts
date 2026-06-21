@@ -1,4 +1,4 @@
-import { BIT_MASK, formatHex16, toUint16 } from "@/engine/bitwise/BitwiseMath";
+import { BIT_MASK, formatHex8, toUint8 } from "@/engine/bitwise/BitwiseMath";
 
 export interface PostGameChallenge {
   readonly prompt: string;
@@ -13,25 +13,25 @@ export interface ChallengeCheckResult {
 }
 
 export function generatePostGameChallenge(length: number): PostGameChallenge {
-  const raw = toUint16(length);
+  const raw = toUint8(length);
 
   if (Math.random() < 0.5) {
-    const start = Math.floor(Math.random() * 9);
-    const width = 2 + Math.floor(Math.random() * 5);
-    const end = Math.min(15, start + width - 1);
+    const start = Math.floor(Math.random() * 5);
+    const width = 2 + Math.floor(Math.random() * 3);
+    const end = Math.min(7, start + width - 1);
     const mask = (1 << (end - start + 1)) - 1;
 
     return {
-      prompt: `uint16_t len = ${formatHex16(raw)}; write a C expression using len to extract bits ${end}..${start}.`,
+      prompt: `uint8_t len = ${formatHex8(raw)}; write a C expression using len to extract bits ${end}..${start}.`,
       length: raw,
       expected: (raw >>> start) & mask,
       variableName: "len",
     };
   }
 
-  const bit = Math.floor(Math.random() * 16);
+  const bit = Math.floor(Math.random() * 8);
   return {
-    prompt: `uint16_t len = ${formatHex16(raw)}; write a C expression using len that clears bit ${bit} to 0.`,
+    prompt: `uint8_t len = ${formatHex8(raw)}; write a C expression using len that clears bit ${bit} to 0.`,
     length: raw,
     expected: raw & ~(1 << bit) & BIT_MASK,
     variableName: "len",
@@ -48,14 +48,14 @@ export function checkPostGameChallenge(
 
   try {
     const value = evaluateCBitwiseExpression(answer, { len: challenge.length });
-    const normalized = toUint16(value);
-    const ok = normalized === toUint16(challenge.expected);
+    const normalized = toUint8(value);
+    const ok = normalized === toUint8(challenge.expected);
 
     return {
       ok,
       message: ok
         ? "Correct. Bonus point granted."
-        : `Wrong. Expected value: ${formatHex16(challenge.expected)}.`,
+        : `Wrong. Expected value: ${formatHex8(challenge.expected)}.`,
     };
   } catch (error) {
     return {
@@ -101,13 +101,13 @@ class ExpressionParser {
   parse(): number {
     const value = this.parseOr();
     this.expect("eof");
-    return toUint16(value);
+    return toUint8(value);
   }
 
   private parseOr(): number {
     let value = this.parseXor();
     while (this.match("|")) {
-      value = toUint16(value | this.parseXor());
+      value = toUint8(value | this.parseXor());
     }
     return value;
   }
@@ -115,7 +115,7 @@ class ExpressionParser {
   private parseXor(): number {
     let value = this.parseAnd();
     while (this.match("^")) {
-      value = toUint16(value ^ this.parseAnd());
+      value = toUint8(value ^ this.parseAnd());
     }
     return value;
   }
@@ -123,7 +123,7 @@ class ExpressionParser {
   private parseAnd(): number {
     let value = this.parseShift();
     while (this.match("&")) {
-      value = toUint16(value & this.parseShift());
+      value = toUint8(value & this.parseShift());
     }
     return value;
   }
@@ -132,9 +132,9 @@ class ExpressionParser {
     let value = this.parseUnary();
     while (true) {
       if (this.match("<<")) {
-        value = toUint16(value << this.parseUnary());
+        value = toUint8(value << this.parseUnary());
       } else if (this.match(">>")) {
-        value = toUint16(value >>> this.parseUnary());
+        value = toUint8(value >>> this.parseUnary());
       } else {
         return value;
       }
@@ -143,7 +143,7 @@ class ExpressionParser {
 
   private parseUnary(): number {
     if (this.match("~")) {
-      return toUint16(~this.parseUnary());
+      return toUint8(~this.parseUnary());
     }
     return this.parsePrimary();
   }
@@ -160,7 +160,7 @@ class ExpressionParser {
       if (!(name in this.variables)) {
         throw new Error(`Unknown variable: ${name}`);
       }
-      return toUint16(this.variables[name] ?? 0);
+      return toUint8(this.variables[name] ?? 0);
     }
 
     if (this.match("(")) {

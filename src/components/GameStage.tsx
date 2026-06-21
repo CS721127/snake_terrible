@@ -6,6 +6,7 @@ import type { RealtimeRole } from "@/realtime/types";
 
 interface GameStageProps {
   readonly canvasRef: RefObject<HTMLCanvasElement>;
+  readonly stageBoardRef: RefObject<HTMLDivElement>;
   readonly difficulty: DifficultyLevel;
   readonly phase: GamePhase;
   readonly role: RealtimeRole;
@@ -21,6 +22,7 @@ const GAME_OVER_COPY = {
 
 export function GameStage({
   canvasRef,
+  stageBoardRef,
   difficulty,
   phase,
   role,
@@ -38,7 +40,7 @@ export function GameStage({
         }
       : {
           title: "READY?",
-          desc: "Choose a 16-bit starting length, then use Arrow keys, WASD, or touch swipes to chase bitwise food.",
+          desc: "Choose an 8-bit starting length, then use Arrow keys, WASD, or touch swipes to chase bitwise food.",
           cta: "START_GAME()",
           state: "idle",
         };
@@ -46,7 +48,7 @@ export function GameStage({
 
   return (
     <main className="stage">
-      <div className="stage__board">
+      <div className="stage__board" ref={stageBoardRef}>
         <canvas aria-label="Complement-Snake game canvas" id="game-canvas" ref={canvasRef} />
 
         <div
