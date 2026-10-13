@@ -4,6 +4,22 @@ Complement-Snake is a browser snake game that keeps the existing Canvas game
 engine while moving the application shell to the requested Sprint Planning
 architecture.
 
+> **Proceed with caution.** An experimental, delightfully unpolished prototype born out of a questionable hackathon idea. It might be boring, it might break, but it’s open for exploration if you dare.
+
+## Overview
+
+This project started as an ambitious hackathon submission that quickly proved to be... well, a terrible idea. Rather than letting it rot in a local folder, we've opened the source code for anyone curious enough to poke around, reuse components, or salvage useful bits.
+
+Expect bugs, rough edges, and minimal polish. You’ve been warned!
+
+## Important Notices & Licensing
+
+* **Use at Your Own Risk:** We provide this software strictly "as-is" without any warranties. We hold no responsibility or liability for how you use, run, or deploy this code.
+* **Third-Party Branding & Assets:** Some components within this repository may contain third-party logos, assets, or proprietary branding. **Please ensure you have proper authorization or rights from the respective brand owners** before reusing or redistributing those specific components.
+* **Open Exploration:** Feel free to fork, salvage, or adapt any original parts of this repository for your own projects!
+
+---
+
 ## Architecture
 
 Plan A: Host browser authority + Supabase Realtime transport layer.
